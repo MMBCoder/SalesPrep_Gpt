@@ -57,9 +57,14 @@ async function tavilySearch(query, maxResults = 5) {
 }
 
 // --- AI Brief Generation System Prompt ---
-const BRIEF_SYSTEM_PROMPT = `You are a senior FMCG sales intelligence analyst for the Indian market. Generate a comprehensive, data-rich pre-meeting brief for a field sales representative.
+const BRIEF_SYSTEM_PROMPT = `You are a senior sales intelligence analyst. Generate a comprehensive, data-rich pre-meeting brief for a field sales representative.
 
-Use REAL figures from the search data provided. Where exact numbers are unavailable, make professional estimates based on context and mark them "(est.)". Be specific — avoid vague language.
+CRITICAL RULES — follow these strictly to avoid hallucination:
+1. DATE DISCIPLINE: You will be told today's date. Only include quarterly results that have been PUBLICLY REPORTED before today. If a quarter has not yet ended or results have not been released, do NOT include it. Use the most recently available reported quarter as your latest data point. Never fabricate future results.
+2. CURRENCY: Use the company's native reporting currency. US companies → USD (e.g. "$4.4B", "$12.5M"). Indian companies → ₹ Crores. UK companies → GBP. Do NOT apply Indian ₹ Crore format to US or non-Indian companies.
+3. REAL DATA ONLY: Use REAL figures from the search data provided. Where a specific number is genuinely unavailable in the search data, write "N/A" — never leave "XX%" or template placeholders in the output.
+4. ESTIMATES: Where exact numbers are unavailable but can be professionally inferred from context, use the value and mark it "(est.)".
+5. NO TRUNCATION: Complete every field fully. Never cut off sentences mid-way.
 
 Return ONLY valid JSON with NO markdown, NO explanation. Use this exact structure:
 
@@ -69,18 +74,18 @@ Return ONLY valid JSON with NO markdown, NO explanation. Use this exact structur
   "tagline": "One sharp sentence describing the company's market position",
   "overview": "4-5 sentence paragraph: founding year, headquarters, core business, market leadership, recent strategic direction",
   "key_metrics": {
-    "market_cap": "₹X.X L Cr",
-    "revenue_annual": "₹XX,XXX Cr",
-    "net_profit_annual": "₹X,XXX Cr",
-    "net_profit_margin": "X.X%",
-    "ebitda_margin": "XX.X%",
-    "yoy_growth": "+X.X%",
-    "employee_count": "XX,XXX+",
-    "market_share": "XX% (category)",
-    "distribution_reach": "X.X million+ outlets",
-    "r_and_d_spend": "₹XXX Cr (est.)",
-    "dividend_yield": "X.X%",
-    "pe_ratio": "XX.X"
+    "market_cap": "Use native currency e.g. $18B or ₹1,99,000 Cr",
+    "revenue_annual": "Use native currency e.g. $14.8B or ₹60,000 Cr",
+    "net_profit_annual": "Use native currency or N/A",
+    "net_profit_margin": "X.X% or N/A",
+    "ebitda_margin": "XX.X% or N/A",
+    "yoy_growth": "+X.X% or N/A",
+    "employee_count": "XX,XXX+ or N/A",
+    "market_share": "XX% (segment) — use N/A if not in search data, never use XX%",
+    "distribution_reach": "Relevant metric for this company type e.g. outlets/partners/stores or N/A",
+    "r_and_d_spend": "Use native currency or N/A",
+    "dividend_yield": "X.X% or N/A",
+    "pe_ratio": "XX.X or N/A"
   },
   "segment_revenue": [
     { "segment": "Segment Name", "revenue": "₹X,XXX Cr", "share": "XX%", "growth_yoy": "+X.X%", "trend": "growing|stable|declining" },
@@ -89,22 +94,34 @@ Return ONLY valid JSON with NO markdown, NO explanation. Use this exact structur
   ],
   "quarters": [
     {
-      "period": "Q1 FY25", "revenue": "₹X,XXX Cr", "revenue_value": 12000,
-      "profit": "₹XXX Cr", "profit_value": 1800,
-      "growth_yoy": "+X.X%", "ebitda_margin": "XX.X%",
-      "highlights": ["Key highlight 1", "Key highlight 2", "Key highlight 3"]
+      "period": "Use actual reported quarter label e.g. Q1 FY26 or Q1 2025 — only periods with PUBLISHED results",
+      "revenue": "Use company native currency e.g. $4.4B or ₹14,000 Cr",
+      "revenue_value": 14000,
+      "profit": "Use company native currency",
+      "profit_value": 2100,
+      "growth_yoy": "+X.X%",
+      "ebitda_margin": "XX.X% or N/A",
+      "highlights": ["Specific highlight from search data 1", "Specific highlight 2", "Specific highlight 3"]
     },
     {
-      "period": "Q2 FY25", "revenue": "₹X,XXX Cr", "revenue_value": 13000,
-      "profit": "₹XXX Cr", "profit_value": 1950,
-      "growth_yoy": "+X.X%", "ebitda_margin": "XX.X%",
-      "highlights": ["Key highlight 1", "Key highlight 2", "Key highlight 3"]
+      "period": "Second most recent published quarter",
+      "revenue": "Use company native currency",
+      "revenue_value": 13000,
+      "profit": "Use company native currency",
+      "profit_value": 1950,
+      "growth_yoy": "+X.X%",
+      "ebitda_margin": "XX.X% or N/A",
+      "highlights": ["Highlight 1", "Highlight 2", "Highlight 3"]
     },
     {
-      "period": "Q3 FY25", "revenue": "₹X,XXX Cr", "revenue_value": 14000,
-      "profit": "₹XXX Cr", "profit_value": 2100,
-      "growth_yoy": "+X.X%", "ebitda_margin": "XX.X%",
-      "highlights": ["Key highlight 1", "Key highlight 2", "Key highlight 3"]
+      "period": "Third most recent published quarter",
+      "revenue": "Use company native currency",
+      "revenue_value": 12000,
+      "profit": "Use company native currency",
+      "profit_value": 1800,
+      "growth_yoy": "+X.X%",
+      "ebitda_margin": "XX.X% or N/A",
+      "highlights": ["Highlight 1", "Highlight 2", "Highlight 3"]
     }
   ],
   "brand_portfolio": [
@@ -413,9 +430,10 @@ ${formatResults(news)}
 
     // 3. Call GPT-4o-mini
     console.log('  → Calling GPT-4o-mini...');
+    const today = new Date().toISOString().split('T')[0];
     const aiContent = await openaiGenerate(
       BRIEF_SYSTEM_PROMPT,
-      `Generate a comprehensive sales brief for: ${client_name}\n\nWeb search data collected (use the source titles when referencing data):\n\n${context}`
+      `TODAY'S DATE: ${today}. Only include quarterly results publicly reported BEFORE this date.\n\nGenerate a comprehensive sales brief for: ${client_name}\nIndustry: ${industry || 'General'}\n\nWeb search data collected (use the source titles when referencing data):\n\n${context}`
     );
     console.log(`  ✅ GPT-4o-mini brief generated for ${client_name} | Sources: ${sources.financial.length + sources.competitors.length + sources.news.length}`);
 
