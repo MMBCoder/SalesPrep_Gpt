@@ -103,7 +103,7 @@ function buildCover(doc, brief, ai) {
   doc.text(brief.client_name || '', ML, y); y += 12
 
   // Industry pill
-  chip(doc, `${brief.industry || 'FMCG'}  •  ${brief.client_type || 'Distributor'}`, ML, y); y += 10
+  chip(doc, `${ai?.industry || brief.industry || 'FMCG'}  •  ${brief.client_type || 'Distributor'}`, ML, y); y += 10
 
   // Meta line
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...C.gray)

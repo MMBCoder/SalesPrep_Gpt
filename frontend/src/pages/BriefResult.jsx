@@ -31,7 +31,7 @@ export default function BriefResult() {
           <div className="flex items-start justify-between mb-6">
             <div>
               <span className="bg-primary text-white text-[16px] font-semibold px-4 py-1.5 rounded-full">
-                {brief.industry || 'FMCG'} • {brief.client_type || 'Distributor'}
+                {brief.ai_content?.industry || brief.industry || 'FMCG'} • {brief.client_type || 'Distributor'}
               </span>
               <h1 className="text-[36px] font-bold text-[#000] mt-3">{brief.client_name}</h1>
             </div>

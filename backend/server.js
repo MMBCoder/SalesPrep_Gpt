@@ -70,7 +70,7 @@ Return ONLY valid JSON with NO markdown, NO explanation. Use this exact structur
 
 {
   "company_name": "Full official company name",
-  "industry": "FMCG",
+  "industry": "Actual sector this company belongs to — e.g. 'Banking & Finance' for banks, 'FMCG' for consumer goods, 'IT Services' for tech firms, 'Pharmaceuticals' for pharma, 'Retail' for retailers, 'Automobiles' for auto. Detect from company research, do NOT just repeat the user input.",
   "tagline": "One sharp sentence describing the company's market position",
   "overview": "4-5 sentence paragraph: founding year, headquarters, core business, market leadership, recent strategic direction",
   "key_metrics": {
