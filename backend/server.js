@@ -435,6 +435,11 @@ const EXTRACTION_PROMPT = `You are a financial data extractor. Read the search d
   ],
   "top_competitors": [],
   "market_share": null,
+  "market_cap": null,
+  "pe_ratio": null,
+  "dividend_yield": null,
+  "employee_count": null,
+  "distribution_reach": null,
   "segments": []
 }
 
@@ -453,14 +458,15 @@ app.post('/api/briefs/generate', auth, async (req, res) => {
     const fmt = (data) =>
       (data.results || []).map(r => `[${r.title}]\n${r.content || r.snippet || ''}`).join('\n\n---\n\n');
 
-    // ── Stage 1: 5 parallel company searches ─────────────────────────────────
+    // ── Stage 1: 6 parallel company searches ─────────────────────────────────
     console.log('  → Stage 1: company searches...');
-    const [fin, annual, mktPos, comp, newsData] = await Promise.all([
+    const [fin, annual, mktPos, comp, newsData, stockData] = await Promise.all([
       tavilySearch(`"${client_name}" quarterly revenue earnings net income 2024 2025`),
       tavilySearch(`"${client_name}" annual revenue full year 2023 2024 financial results`),
       tavilySearch(`"${client_name}" market share industry position 2024 2025`),
       tavilySearch(`"${client_name}" top competitors sector 2024 2025`),
       tavilySearch(`"${client_name}" news strategy expansion products 2025`),
+      tavilySearch(`"${client_name}" market cap stock price PE ratio dividend yield employees headcount 2025`),
     ]);
 
     const companyContext = `
@@ -478,6 +484,9 @@ ${comp.answer ? `Summary: ${comp.answer}\n\n` : ''}${fmt(comp)}
 
 === NEWS ===
 ${newsData.answer ? `Summary: ${newsData.answer}\n\n` : ''}${fmt(newsData)}
+
+=== STOCK & COMPANY DATA ===
+${stockData.answer ? `Summary: ${stockData.answer}\n\n` : ''}${fmt(stockData)}
 `.trim();
 
     // ── Stage 2: AI extraction pass — get clean facts + competitor names ──────
@@ -511,6 +520,23 @@ ${newsData.answer ? `Summary: ${newsData.answer}\n\n` : ''}${fmt(newsData)}
     }
 
     // ── Stage 4: Full brief generation with verified facts ────────────────────
+    // Calculate net profit margin if missing but components available
+    let calculatedMargin = extracted.net_profit_margin || null;
+    if (!calculatedMargin) {
+      const profitRaw = (extracted.net_income_latest || '').replace(/[^0-9.]/g, '');
+      const revenueRaw = (extracted.annual_revenue_latest || '').replace(/[^0-9.]/g, '');
+      const profit = parseFloat(profitRaw);
+      const revenue = parseFloat(revenueRaw);
+      if (profit > 0 && revenue > 0) {
+        // Handle B vs M units: if revenue ends in B and profit ends in M, adjust
+        const profitIsB = /B/i.test(extracted.net_income_latest || '');
+        const revenueIsB = /B/i.test(extracted.annual_revenue_latest || '');
+        const profitVal = profitIsB ? profit : profit / 1000;
+        const revenueVal = revenueIsB ? revenue : revenue / 1000;
+        if (revenueVal > 0) calculatedMargin = `${(profitVal / revenueVal * 100).toFixed(1)}%`;
+      }
+    }
+
     const verifiedFacts = `
 === VERIFIED EXTRACTED FACTS (use these directly — do not override with N/A) ===
 Company: ${extracted.company_name || client_name}
@@ -520,11 +546,12 @@ Annual Revenue (${extracted.annual_revenue_latest_year || 'latest'}): ${extracte
 Prior Year Revenue: ${extracted.annual_revenue_prior || 'N/A'}
 Net Income: ${extracted.net_income_latest || 'N/A'} (${extracted.net_income_year || ''})
 YoY Revenue Growth: ${extracted.yoy_revenue_growth || 'N/A'}
+Net Profit Margin: ${calculatedMargin || extracted.net_profit_margin || 'N/A'}
 Market Cap: ${extracted.market_cap || 'N/A'}
-Net Profit Margin: ${extracted.net_profit_margin || 'N/A'}
-Employees: ${extracted.employee_count || 'N/A'}
-Dividend Yield: ${extracted.dividend_yield || 'N/A'}
 P/E Ratio: ${extracted.pe_ratio || 'N/A'}
+Dividend Yield: ${extracted.dividend_yield || 'N/A'}
+Employees: ${extracted.employee_count || 'N/A'}
+Distribution / Reach: ${extracted.distribution_reach || 'N/A'}
 Market Share: ${extracted.market_share || 'N/A'}
 Quarterly Data:
 ${(extracted.quarters || []).map(q => `  ${q.period}: Revenue ${q.revenue}, Net Income ${q.net_income}, YoY ${q.yoy_growth}`).join('\n')}
@@ -540,7 +567,7 @@ Segments: ${JSON.stringify(extracted.segments || [])}
     );
 
     const sources = {
-      financial: [...(fin.results || []), ...(annual.results || [])].filter(r => r.url).map(r => ({ title: r.title, url: r.url, published_date: r.published_date || '' })),
+      financial: [...(fin.results || []), ...(annual.results || []), ...(stockData.results || [])].filter(r => r.url).map(r => ({ title: r.title, url: r.url, published_date: r.published_date || '' })),
       competitors: [...(comp.results || []), ...(mktPos.results || [])].filter(r => r.url).map(r => ({ title: r.title, url: r.url, published_date: r.published_date || '' })),
       news: (newsData.results || []).filter(r => r.url).map(r => ({ title: r.title, url: r.url, published_date: r.published_date || '' })),
     };
