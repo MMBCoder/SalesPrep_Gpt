@@ -27,7 +27,7 @@ export default function BriefResult() {
       <Sidebar />
 
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-8 bg-white" ref={contentRef}>
+        <div className="flex-1 overflow-y-auto p-8 bg-white">
           {/* Header */}
           <div className="flex items-start justify-between mb-6">
             <div>
@@ -57,7 +57,9 @@ export default function BriefResult() {
 
           {/* AI-generated content block */}
           {brief.ai_content ? (
-            <AIBriefContent data={brief.ai_content} sources={brief.sources} />
+            <div ref={contentRef}>
+              <AIBriefContent data={brief.ai_content} sources={brief.sources} />
+            </div>
           ) : (
             <>
               {/* AI failed notice */}

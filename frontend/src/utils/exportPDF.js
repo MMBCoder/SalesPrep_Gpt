@@ -2,7 +2,8 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import html2canvas from 'html2canvas'
 
-const PRIMARY = [29, 106, 74]
+const PRIMARY      = [29, 106, 74]
+const PRIMARY_RGB  = '#1D6A4A'
 
 function addPageHeader(doc, clientName) {
   const pageW = doc.internal.pageSize.getWidth()
@@ -22,80 +23,144 @@ function addPageHeader(doc, clientName) {
   doc.setTextColor(0, 0, 0)
 }
 
-// Screenshot the live rendered dashboard and slice into A4 pages
+function addPageFooter(doc, pageNum, totalPages) {
+  const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
+  doc.setFontSize(7.5)
+  doc.setTextColor(180, 180, 180)
+  doc.text(
+    `Page ${pageNum} of ${totalPages}  •  Confidential — SalesPrep`,
+    pageW / 2, pageH - 4, { align: 'center' }
+  )
+  doc.setTextColor(0, 0, 0)
+}
+
 export async function exportBriefPDF(brief, element) {
-  if (!element) {
-    // Fallback: basic text PDF if no element ref provided
-    return exportBriefPDFFallback(brief)
-  }
+  if (!element) return exportBriefPDFFallback(brief)
 
   const clientName = brief.client_name || 'Brief'
 
-  // Capture the full scrollable element at 2x for retina quality
+  // ── 1. Capture only the AIBriefContent element ──────────────────────────
   const canvas = await html2canvas(element, {
-    scale: 2,
-    useCORS: true,
-    logging: false,
+    scale:        2,
+    useCORS:      true,
+    logging:      false,
     backgroundColor: '#ffffff',
-    scrollX: 0,
-    scrollY: 0,
-    windowWidth: element.scrollWidth,
+    scrollX:      0,
+    scrollY:      0,
+    windowWidth:  element.scrollWidth,
     windowHeight: element.scrollHeight,
   })
 
-  const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true })
-  const pageW = doc.internal.pageSize.getWidth()   // 210 mm
-  const pageH = doc.internal.pageSize.getHeight()  // 297 mm
-  const headerH = 22   // mm — header bar
-  const marginX = 10   // mm — left/right margin
-  const contentW = pageW - marginX * 2             // 190 mm usable width
-  const contentH = pageH - headerH - 6             // mm usable height per page
+  // ── 2. Page geometry ──────────────────────────────────────────────────
+  const doc      = new jsPDF({ unit: 'mm', format: 'a4', compress: true })
+  const pageW    = doc.internal.pageSize.getWidth()   // 210 mm
+  const pageH    = doc.internal.pageSize.getHeight()  // 297 mm
+  const headerH  = 22   // header bar height
+  const footerH  = 10   // footer bar height
+  const marginX  = 8    // left/right margin
+  const contentW = pageW - marginX * 2
+  const contentH = pageH - headerH - footerH          // usable body height per page
 
-  // Total rendered height in mm (scaled to fit A4 width)
-  const totalImgH = (canvas.height / canvas.width) * contentW
+  // Total scaled height of the captured element in mm
+  const totalImgH  = (canvas.height / canvas.width) * contentW
   const totalPages = Math.ceil(totalImgH / contentH)
 
+  // ── 3. Title page ─────────────────────────────────────────────────────
+  addPageHeader(doc, clientName)
+
+  // Company name
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(26)
+  doc.setTextColor(0, 0, 0)
+  doc.text(clientName, marginX, 38)
+
+  // Industry / type pill
+  doc.setFillColor(212, 237, 225)
+  doc.setDrawColor(...PRIMARY)
+  doc.roundedRect(marginX, 44, 60, 8, 2, 2, 'FD')
+  doc.setFontSize(9)
+  doc.setTextColor(...PRIMARY)
+  doc.text(`${brief.industry || 'FMCG'}  •  ${brief.client_type || 'Distributor'}`, marginX + 3, 49.5)
+
+  // Meeting details
+  let my = 60
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.setTextColor(80, 80, 80)
+  if (brief.meeting_date) {
+    doc.text(`Meeting Date:  ${brief.meeting_date}  ${brief.meeting_time || ''}`, marginX, my)
+    my += 7
+  }
+  if (brief.meeting_location) {
+    doc.text(`Location:  ${brief.meeting_location}`, marginX, my)
+    my += 7
+  }
+  doc.text(`Generated:  ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`, marginX, my)
+  my += 7
+  doc.text('Source:  Tavily Web Search + GPT-4o-mini', marginX, my)
+
+  // Divider
+  my += 8
+  doc.setDrawColor(212, 237, 225)
+  doc.setLineWidth(0.5)
+  doc.line(marginX, my, pageW - marginX, my)
+
+  // Overview text if available
+  if (brief.ai_content?.overview) {
+    my += 8
+    doc.setFont('helvetica', 'italic')
+    doc.setFontSize(9.5)
+    doc.setTextColor(...PRIMARY)
+    doc.text(brief.ai_content.tagline || '', marginX, my)
+    my += 6
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(60, 60, 60)
+    const lines = doc.splitTextToSize(brief.ai_content.overview, contentW)
+    doc.text(lines, marginX, my)
+  }
+
+  addPageFooter(doc, 1, totalPages + 1)
+
+  // ── 4. Content pages (sliced canvas) ─────────────────────────────────
   for (let page = 0; page < totalPages; page++) {
-    if (page > 0) doc.addPage()
+    doc.addPage()
     addPageHeader(doc, clientName)
 
-    // Pixel rows for this page slice
-    const sliceStartPx = Math.round((page * contentH / totalImgH) * canvas.height)
+    // Pixel slice for this page
+    const sliceStartPx  = Math.round((page * contentH / totalImgH) * canvas.height)
     const sliceHeightPx = Math.min(
       Math.round((contentH / totalImgH) * canvas.height),
       canvas.height - sliceStartPx
     )
 
-    if (sliceHeightPx <= 0) break
+    // Skip a nearly-empty trailing page (< 3% of canvas height)
+    if (sliceHeightPx < canvas.height * 0.03) {
+      doc.deletePage(doc.internal.getNumberOfPages())
+      break
+    }
 
-    // Draw the slice onto a temporary canvas
-    const sliceCanvas = document.createElement('canvas')
-    sliceCanvas.width = canvas.width
-    sliceCanvas.height = sliceHeightPx
-    const ctx = sliceCanvas.getContext('2d')
-    ctx.fillStyle = '#ffffff'
+    // Draw this slice onto a temp canvas
+    const sliceCanvas    = document.createElement('canvas')
+    sliceCanvas.width    = canvas.width
+    sliceCanvas.height   = sliceHeightPx
+    const ctx            = sliceCanvas.getContext('2d')
+    ctx.fillStyle        = '#ffffff'
     ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height)
     ctx.drawImage(canvas, 0, -sliceStartPx)
 
     const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.93)
-    const sliceHmm = (sliceHeightPx / canvas.width) * contentW
+    const sliceHmm  = (sliceHeightPx / canvas.width) * contentW
 
     doc.addImage(sliceData, 'JPEG', marginX, headerH + 2, contentW, sliceHmm)
-  }
-
-  // Footer page number on each page
-  const total = doc.internal.getNumberOfPages()
-  for (let i = 1; i <= total; i++) {
-    doc.setPage(i)
-    doc.setFontSize(8)
-    doc.setTextColor(160, 160, 160)
-    doc.text(`Page ${i} of ${total}  •  Confidential — SalesPrep`, pageW / 2, pageH - 4, { align: 'center' })
+    addPageFooter(doc, page + 2, totalPages + 1)
   }
 
   doc.save(`SalesPrep_${clientName.replace(/\s+/g, '_')}_Brief.pdf`)
 }
 
-// Plain text fallback when no element ref
+// Minimal fallback when element ref is unavailable
 function exportBriefPDFFallback(brief) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const { client_name, ai_content } = brief
@@ -106,12 +171,12 @@ function exportBriefPDFFallback(brief) {
   if (ai_content?.overview) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(50, 50, 50)
     const lines = doc.splitTextToSize(ai_content.overview, 182)
-    doc.text(lines, 14, y); y += lines.length * 5 + 6
+    doc.text(lines, 14, y)
   }
   doc.save(`SalesPrep_${client_name.replace(/\s+/g, '_')}_Brief.pdf`)
 }
 
-// History summary PDF (table format is fine here)
+// History summary — table format is fine here
 export function exportHistoryPDF(briefs) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   addPageHeader(doc, 'All Briefs')

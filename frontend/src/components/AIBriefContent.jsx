@@ -64,7 +64,7 @@ const CustomTooltip = ({ active, payload, label }) => {
       {payload.map(p => (
         <p key={p.name} style={{ color: p.color }} className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full inline-block" style={{ background: p.color }} />
-          {p.name}: <strong>₹{p.value?.toLocaleString()} Cr</strong>
+          {p.name}: <strong>{p.value?.toLocaleString()}</strong>
         </p>
       ))}
     </div>
@@ -194,7 +194,7 @@ export default function AIBriefContent({ data, sources }) {
           <BarChart data={quarterChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
             <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `₹${(v / 1000).toFixed(0)}K`} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}K` : `${v}`} axisLine={false} tickLine={false} />
             <Tooltip content={<CustomTooltip />} />
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey="Revenue" fill={PRIMARY} radius={[4, 4, 0, 0]} maxBarSize={50} />
@@ -372,7 +372,7 @@ export default function AIBriefContent({ data, sources }) {
         {/* Revenue Bar Chart */}
         {compChartData.length > 1 && (
           <div className="mb-6">
-            <p className="text-[12px] font-bold text-gray-label uppercase tracking-wide mb-3">Revenue Comparison — Q3 (₹ Cr)</p>
+            <p className="text-[12px] font-bold text-gray-label uppercase tracking-wide mb-3">Revenue Comparison — Latest Quarter</p>
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={compChartData} layout="vertical" margin={{ left: 10, right: 50, top: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
