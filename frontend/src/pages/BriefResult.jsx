@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import AIBriefContent from '../components/AIBriefContent'
@@ -10,6 +10,8 @@ export default function BriefResult() {
   const navigate = useNavigate()
   const [brief, setBrief] = useState(null)
   const [allBriefs, setAllBriefs] = useState([])
+  const [exporting, setExporting] = useState(false)
+  const contentRef = useRef(null)
 
   useEffect(() => {
     api.get(`/briefs/${id}`).then(r => setBrief(r.data))
@@ -25,7 +27,7 @@ export default function BriefResult() {
       <Sidebar />
 
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-8 bg-white">
+        <div className="flex-1 overflow-y-auto p-8 bg-white" ref={contentRef}>
           {/* Header */}
           <div className="flex items-start justify-between mb-6">
             <div>
@@ -38,8 +40,11 @@ export default function BriefResult() {
               <button onClick={() => navigate(`/briefs/${id}/regenerate`)} className="flex items-center justify-center bg-primary text-white w-[168px] h-[49px] rounded-lg font-bold text-[18px] hover:opacity-90">
                 + New Brief
               </button>
-              <button onClick={() => exportBriefPDF(brief)} className="flex items-center justify-center border-2 border-primary text-primary w-[168px] h-[49px] rounded-lg font-bold text-[18px] hover:bg-primary-light">
-                Export PDF
+              <button
+                onClick={async () => { setExporting(true); await exportBriefPDF(brief, contentRef.current); setExporting(false) }}
+                disabled={exporting}
+                className="flex items-center justify-center border-2 border-primary text-primary w-[168px] h-[49px] rounded-lg font-bold text-[18px] hover:bg-primary-light disabled:opacity-60">
+                {exporting ? 'Exporting...' : 'Export PDF'}
               </button>
             </div>
           </div>
