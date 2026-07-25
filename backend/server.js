@@ -412,106 +412,138 @@ app.get('/api/briefs/:id', auth, (req, res) => {
   res.json(brief);
 });
 
-// ── QA validator ─────────────────────────────────────────────────────────────
-function qaBrief(ai) {
-  const km = ai.key_metrics || {};
-  const kmVals = Object.values(km);
-  const naCount = kmVals.filter(v => !v || v === 'N/A').length;
-  const naRatio = naCount / Math.max(kmVals.length, 1);
+// ── Stage 1 extraction prompt ────────────────────────────────────────────────
+const EXTRACTION_PROMPT = `You are a financial data extractor. Read the search data carefully and extract ONLY values that are EXPLICITLY STATED. Do not guess or infer. Return valid JSON only.
 
-  const hasQuarterRevenue = (ai.quarters || []).some(q => q.revenue_value > 0);
-  const hasCompetitors    = (ai.competitors || []).length >= 2;
-  const criticalNA = ['market_cap', 'revenue_annual', 'yoy_growth']
-    .filter(k => !km[k] || km[k] === 'N/A');
-
-  const passed = naRatio < 0.65 && hasQuarterRevenue && criticalNA.length <= 1;
-  return { passed, naRatio, criticalNA, hasQuarterRevenue, hasCompetitors };
+{
+  "company_name": null,
+  "sector": null,
+  "headquarters": null,
+  "annual_revenue_latest": null,
+  "annual_revenue_latest_year": null,
+  "annual_revenue_prior": null,
+  "net_income_latest": null,
+  "net_income_year": null,
+  "yoy_revenue_growth": null,
+  "market_cap": null,
+  "net_profit_margin": null,
+  "employee_count": null,
+  "dividend_yield": null,
+  "pe_ratio": null,
+  "quarters": [
+    {"period": null, "revenue": null, "revenue_value": 0, "net_income": null, "profit_value": 0, "yoy_growth": null}
+  ],
+  "top_competitors": [],
+  "market_share": null,
+  "segments": []
 }
+
+Rules:
+- quarters: list the 3 most recent reported periods newest-first. revenue_value and profit_value must be integers in Millions for US companies, Crores for Indian companies (no symbols).
+- top_competitors: list 3 real competitors by name only (strings).
+- segments: list actual business segments with revenue if explicitly stated, else empty array.
+- Use null for any field not found in the data. Never fabricate numbers.`;
 
 app.post('/api/briefs/generate', auth, async (req, res) => {
   const { client_name, industry, client_type, meeting_date, meeting_time, meeting_location } = req.body;
 
   try {
-    console.log(`\n🔍 Generating AI brief for: ${client_name}`);
+    console.log(`\n🔍 Generating brief for: ${client_name}`);
 
-    const formatResults = (data) =>
-      (data.results || []).map(r => `[SOURCE: ${r.title}]\n[URL: ${r.url || 'N/A'}]\n${r.content || r.snippet || ''}`).join('\n\n---\n\n');
+    const fmt = (data) =>
+      (data.results || []).map(r => `[${r.title}]\n${r.content || r.snippet || ''}`).join('\n\n---\n\n');
 
-    const buildContext = (fin, annual, mktPos, comp, compFin, news) => `
-=== QUARTERLY FINANCIAL RESULTS ===
-${fin.answer ? `Summary: ${fin.answer}\n\n` : ''}${formatResults(fin)}
-
-=== ANNUAL REVENUE & FULL-YEAR PERFORMANCE ===
-${annual.answer ? `Summary: ${annual.answer}\n\n` : ''}${formatResults(annual)}
-
-=== MARKET POSITION & MARKET SHARE ===
-${mktPos.answer ? `Summary: ${mktPos.answer}\n\n` : ''}${formatResults(mktPos)}
-
-=== COMPETITOR NAMES & LANDSCAPE ===
-${comp.answer ? `Summary: ${comp.answer}\n\n` : ''}${formatResults(comp)}
-
-=== COMPETITOR FINANCIAL DATA ===
-${compFin.answer ? `Summary: ${compFin.answer}\n\n` : ''}${formatResults(compFin)}
-
-=== RECENT NEWS & STRATEGY ===
-${news.answer ? `Summary: ${news.answer}\n\n` : ''}${formatResults(news)}
-`.trim();
-
-    // ── Phase 1: 6 parallel searches ─────────────────────────────────────────
-    console.log('  → Phase 1: 6 parallel Tavily searches...');
-    const [fin, annual, mktPos, comp, compFin, news] = await Promise.all([
-      tavilySearch(`"${client_name}" quarterly revenue earnings net income profit 2024 2025`),
-      tavilySearch(`"${client_name}" annual revenue full year 2023 2024 financial performance`),
-      tavilySearch(`"${client_name}" market share industry position ranking 2024 2025`),
-      tavilySearch(`"${client_name}" top competitors ${industry} sector 2024 2025`),
-      tavilySearch(`"${client_name}" competitor revenue earnings comparison quarterly 2024 2025`),
-      tavilySearch(`"${client_name}" news strategy expansion products services 2025`),
+    // ── Stage 1: 5 parallel company searches ─────────────────────────────────
+    console.log('  → Stage 1: company searches...');
+    const [fin, annual, mktPos, comp, newsData] = await Promise.all([
+      tavilySearch(`"${client_name}" quarterly revenue earnings net income 2024 2025`),
+      tavilySearch(`"${client_name}" annual revenue full year 2023 2024 financial results`),
+      tavilySearch(`"${client_name}" market share industry position 2024 2025`),
+      tavilySearch(`"${client_name}" top competitors sector 2024 2025`),
+      tavilySearch(`"${client_name}" news strategy expansion products 2025`),
     ]);
 
-    let context = buildContext(fin, annual, mktPos, comp, compFin, news);
+    const companyContext = `
+=== QUARTERLY RESULTS ===
+${fin.answer ? `Summary: ${fin.answer}\n\n` : ''}${fmt(fin)}
+
+=== ANNUAL PERFORMANCE ===
+${annual.answer ? `Summary: ${annual.answer}\n\n` : ''}${fmt(annual)}
+
+=== MARKET POSITION ===
+${mktPos.answer ? `Summary: ${mktPos.answer}\n\n` : ''}${fmt(mktPos)}
+
+=== COMPETITORS ===
+${comp.answer ? `Summary: ${comp.answer}\n\n` : ''}${fmt(comp)}
+
+=== NEWS ===
+${newsData.answer ? `Summary: ${newsData.answer}\n\n` : ''}${fmt(newsData)}
+`.trim();
+
+    // ── Stage 2: AI extraction pass — get clean facts + competitor names ──────
+    console.log('  → Stage 2: AI extraction pass...');
+    const today = new Date().toISOString().split('T')[0];
+    const extracted = await openaiGenerate(
+      EXTRACTION_PROMPT,
+      `TODAY: ${today}. Extract facts for: ${client_name}\n\n${companyContext}`
+    );
+    console.log(`  → Extracted: revenue=${extracted.annual_revenue_latest} | competitors=${(extracted.top_competitors || []).join(', ')}`);
+
+    // ── Stage 3: Competitor-specific searches ─────────────────────────────────
+    const competitors = (extracted.top_competitors || []).filter(Boolean).slice(0, 3);
+    let competitorContext = '';
+    if (competitors.length > 0) {
+      console.log(`  → Stage 3: competitor searches for ${competitors.join(', ')}...`);
+      const compSearches = await Promise.all(
+        competitors.map(c => tavilySearch(`"${c}" quarterly revenue annual revenue earnings 2024 2025`))
+      );
+      competitorContext = competitors.map((c, i) =>
+        `=== ${c.toUpperCase()} FINANCIALS ===\n${compSearches[i].answer ? `Summary: ${compSearches[i].answer}\n` : ''}${fmt(compSearches[i])}`
+      ).join('\n\n');
+
+      // Add competitor sources
+      compSearches.forEach(s => {
+        (s.results || []).filter(r => r.url).forEach(r => {
+          if (!comp.results) comp.results = [];
+          comp.results.push(r);
+        });
+      });
+    }
+
+    // ── Stage 4: Full brief generation with verified facts ────────────────────
+    const verifiedFacts = `
+=== VERIFIED EXTRACTED FACTS (use these directly — do not override with N/A) ===
+Company: ${extracted.company_name || client_name}
+Sector: ${extracted.sector || industry}
+HQ: ${extracted.headquarters || 'N/A'}
+Annual Revenue (${extracted.annual_revenue_latest_year || 'latest'}): ${extracted.annual_revenue_latest || 'N/A'}
+Prior Year Revenue: ${extracted.annual_revenue_prior || 'N/A'}
+Net Income: ${extracted.net_income_latest || 'N/A'} (${extracted.net_income_year || ''})
+YoY Revenue Growth: ${extracted.yoy_revenue_growth || 'N/A'}
+Market Cap: ${extracted.market_cap || 'N/A'}
+Net Profit Margin: ${extracted.net_profit_margin || 'N/A'}
+Employees: ${extracted.employee_count || 'N/A'}
+Dividend Yield: ${extracted.dividend_yield || 'N/A'}
+P/E Ratio: ${extracted.pe_ratio || 'N/A'}
+Market Share: ${extracted.market_share || 'N/A'}
+Quarterly Data:
+${(extracted.quarters || []).map(q => `  ${q.period}: Revenue ${q.revenue}, Net Income ${q.net_income}, YoY ${q.yoy_growth}`).join('\n')}
+Segments: ${JSON.stringify(extracted.segments || [])}
+`.trim();
+
+    const fullContext = `${verifiedFacts}\n\n${companyContext}\n\n${competitorContext ? '=== COMPETITOR FINANCIAL DATA ===\n' + competitorContext : ''}`;
+
+    console.log('  → Stage 4: generating full brief...');
+    let aiContent = await openaiGenerate(
+      BRIEF_SYSTEM_PROMPT,
+      `TODAY'S DATE: ${today}. Only include quarters reported BEFORE this date.\n\nGenerate a comprehensive sales brief for: ${client_name}\nIndustry: ${industry || 'General'}\n\n${fullContext}`
+    );
 
     const sources = {
       financial: [...(fin.results || []), ...(annual.results || [])].filter(r => r.url).map(r => ({ title: r.title, url: r.url, published_date: r.published_date || '' })),
-      competitors: [...(comp.results || []), ...(compFin.results || []), ...(mktPos.results || [])].filter(r => r.url).map(r => ({ title: r.title, url: r.url, published_date: r.published_date || '' })),
-      news: (news.results || []).filter(r => r.url).map(r => ({ title: r.title, url: r.url, published_date: r.published_date || '' })),
+      competitors: [...(comp.results || []), ...(mktPos.results || [])].filter(r => r.url).map(r => ({ title: r.title, url: r.url, published_date: r.published_date || '' })),
+      news: (newsData.results || []).filter(r => r.url).map(r => ({ title: r.title, url: r.url, published_date: r.published_date || '' })),
     };
-
-    // ── First AI generation ───────────────────────────────────────────────────
-    const today = new Date().toISOString().split('T')[0];
-    const makePrompt = (ctx) =>
-      `TODAY'S DATE: ${today}. Only include quarterly results publicly reported BEFORE this date.\n\nGenerate a comprehensive sales brief for: ${client_name}\nIndustry: ${industry || 'General'}\n\nResearch data (ALL figures must come from this data only):\n\n${ctx}`;
-
-    console.log('  → Calling GPT-4o-mini (pass 1)...');
-    let aiContent = await openaiGenerate(BRIEF_SYSTEM_PROMPT, makePrompt(context));
-
-    // ── QA validation + retry ─────────────────────────────────────────────────
-    const qa1 = qaBrief(aiContent);
-    console.log(`  → QA pass 1: naRatio=${(qa1.naRatio * 100).toFixed(0)}% N/A | quarters=${qa1.hasQuarterRevenue} | criticalMissing=${qa1.criticalNA.join(',') || 'none'}`);
-
-    if (!qa1.passed) {
-      console.log('  → QA failed — running 3 deep-dive searches...');
-      const [deep1, deep2, deep3] = await Promise.all([
-        tavilySearch(`"${client_name}" revenue 2024 annual report investor relations macrotrends wisesheets`),
-        tavilySearch(`"${client_name}" net income profit margin EBITDA 2024 2025 SEC 10-K 10-Q`),
-        tavilySearch(`top 3 competitors of "${client_name}" quarterly revenue market share earnings 2024`),
-      ]);
-
-      context += `\n\n=== SUPPLEMENTAL DEEP-DIVE DATA ===\n${formatResults(deep1)}\n${formatResults(deep2)}\n${formatResults(deep3)}`;
-
-      // Add missed sources
-      [...(deep1.results || []), ...(deep2.results || [])].filter(r => r.url).forEach(r =>
-        sources.financial.push({ title: r.title, url: r.url, published_date: r.published_date || '' })
-      );
-      (deep3.results || []).filter(r => r.url).forEach(r =>
-        sources.competitors.push({ title: r.title, url: r.url, published_date: r.published_date || '' })
-      );
-
-      console.log('  → Calling GPT-4o-mini (pass 2 with enriched data)...');
-      aiContent = await openaiGenerate(BRIEF_SYSTEM_PROMPT, makePrompt(context));
-
-      const qa2 = qaBrief(aiContent);
-      console.log(`  → QA pass 2: naRatio=${(qa2.naRatio * 100).toFixed(0)}% N/A | quarters=${qa2.hasQuarterRevenue}`);
-    }
 
     console.log(`  ✅ Brief ready for ${client_name} | Sources: ${sources.financial.length + sources.competitors.length + sources.news.length}`);
 
