@@ -35,7 +35,7 @@ export default function App() {
     const token = localStorage.getItem('sp_token')
     if (!token) { setLoading(false); return }
     if (token === 'demo-token-mirza') {
-      setUser({ id: 1, email: 'mirza.22sept@gmail.com', name: 'Mirza', company: 'SalesPrep', job_title: 'Territory Sales Executive', industry: 'FMCG', city: 'Mumbai, Maharashtra', onboarding_complete: 1, profile_complete: 1 })
+      setUser({ id: 1, email: 'demo@salesprep.ai', name: 'Demo User', company: 'SalesPrep', job_title: 'Territory Sales Executive', industry: 'FMCG', city: 'Mumbai, Maharashtra', onboarding_complete: 1, profile_complete: 1 })
       setLoading(false)
       return
     }

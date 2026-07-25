@@ -17,8 +17,8 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
 const DEMO_USER = {
   id: 1,
-  email: 'mirza.22sept@gmail.com',
-  name: 'Mirza',
+  email: 'demo@salesprep.ai',
+  name: 'Demo User',
   company: 'SalesPrep',
   job_title: 'Territory Sales Executive',
   industry: 'FMCG',
@@ -28,8 +28,8 @@ const DEMO_USER = {
 }
 
 export default function Login() {
-  const [email, setEmail] = useState('mirza.22sept@gmail.com')
-  const [password, setPassword] = useState('1234567')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
@@ -51,7 +51,7 @@ export default function Login() {
     setLoading(true)
 
     // Hardcoded demo credentials — always works
-    if (email === 'mirza.22sept@gmail.com' && password === '1234567') {
+    if (email === 'demo@salesprep.ai' && password === 'demo1234') {
       login('demo-token-mirza', DEMO_USER)
       navigate('/dashboard')
       return
