@@ -108,6 +108,14 @@ export default function AIBriefContent({ data, sources }) {
     ...competitors.map(c => ({ name: (c.name || '').split(' ').slice(0, 2).join(' '), Revenue: c.revenue_value || 0 }))
   ]
 
+  const currencySymbol = (() => {
+    const s = key_metrics?.market_cap || key_metrics?.revenue_annual || ''
+    if (typeof s === 'string' && s.startsWith('$')) return '$'
+    if (typeof s === 'string' && s.startsWith('£')) return '£'
+    if (typeof s === 'string' && s.startsWith('€')) return '€'
+    return '₹'
+  })()
+
   const allSources = [
     ...(sources?.financial || []).map(s => ({ ...s, category: 'Financial Data' })),
     ...(sources?.competitors || []).map(s => ({ ...s, category: 'Market & Competitors' })),
@@ -376,11 +384,11 @@ export default function AIBriefContent({ data, sources }) {
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={compChartData} layout="vertical" margin={{ left: 10, right: 50, top: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => `₹${(v / 1000).toFixed(0)}K`} axisLine={false} tickLine={false} />
+                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => `${currencySymbol}${(v / 1000).toFixed(0)}K`} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="Revenue" radius={[0, 4, 4, 0]} maxBarSize={22}
-                  label={{ position: 'right', fontSize: 11, formatter: v => `₹${v?.toLocaleString()}` }}>
+                  label={{ position: 'right', fontSize: 11, formatter: v => `${currencySymbol}${v?.toLocaleString()}` }}>
                   {compChartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Bar>
               </BarChart>
