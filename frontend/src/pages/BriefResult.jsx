@@ -45,7 +45,7 @@ export default function BriefResult() {
           </div>
 
           <div className="flex items-center gap-6 mb-6 text-[14px] font-medium text-gray-label">
-            <span>Source: Tavily Web Search + Gemini Flash</span>
+            <span>Source: Tavily Web Search + GPT-4o-mini</span>
             <span>Generated {new Date(brief.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
             <span className="inline-flex items-center gap-1 bg-input-bg px-3 py-1 rounded-md text-[13px]">🤖 AI-generated</span>
           </div>
@@ -55,6 +55,14 @@ export default function BriefResult() {
             <AIBriefContent data={brief.ai_content} sources={brief.sources} />
           ) : (
             <>
+              {/* AI failed notice */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6 flex items-start gap-3">
+                <span className="text-amber-500 text-xl mt-0.5">⚠️</span>
+                <div>
+                  <p className="text-[15px] font-semibold text-amber-800">AI brief generation failed</p>
+                  <p className="text-[13px] text-amber-700 mt-1">The OpenAI API key may be invalid or quota exceeded. Check <code className="bg-amber-100 px-1 rounded">backend/.env</code> and regenerate this brief.</p>
+                </div>
+              </div>
               {/* Fallback: Company Background */}
               <div className="bg-input-bg rounded-xl p-8 mb-6">
                 <h2 className="text-[22px] font-bold text-[#000] mb-4">Company Background</h2>

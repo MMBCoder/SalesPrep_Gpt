@@ -7,34 +7,34 @@ const low = require('lowdb');
 const FileSync = require('lowdb/adapters/FileSync');
 const path = require('path');
 const axios = require('axios');
+const OpenAI = require('openai');
 
 const app = express();
 const PORT = 3001;
 const JWT_SECRET = 'salesprep_secret_2026';
 
 const TAVILY_API_KEY  = process.env.TAVILY_API_KEY  || '';
-const GEMINI_API_KEY  = process.env.GEMINI_API_KEY  || '';
+const OPENAI_API_KEY  = process.env.OPENAI_API_KEY  || '';
 const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID     || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const BACKEND_URL  = process.env.BACKEND_URL  || 'http://localhost:3001';
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
 
-// --- Gemini generate helper ---
-async function geminiGenerate(systemPrompt, userMessage) {
-  const res = await axios.post(GEMINI_URL, {
-    system_instruction: { parts: [{ text: systemPrompt }] },
-    contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-    generationConfig: {
-      response_mime_type: 'application/json',
-      temperature: 0.3,
-      maxOutputTokens: 4500,
-    },
-  }, {
-    headers: { 'Content-Type': 'application/json', 'X-goog-api-key': GEMINI_API_KEY },
-    timeout: 120000,
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+// --- OpenAI GPT-4o-mini generate helper ---
+async function openaiGenerate(systemPrompt, userMessage) {
+  const res = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userMessage },
+    ],
+    response_format: { type: 'json_object' },
+    temperature: 0.3,
+    max_tokens: 8192,
   });
-  const text = res.data.candidates[0].content.parts[0].text;
+  const text = res.choices[0].message.content || '';
   return JSON.parse(text);
 }
 
@@ -411,13 +411,13 @@ ${formatResults(news)}
       news: (news.results || []).filter(r => r.url).map(r => ({ title: r.title, url: r.url, published_date: r.published_date || '' })),
     };
 
-    // 3. Call Gemini Flash
-    console.log('  → Calling Gemini Flash...');
-    const aiContent = await geminiGenerate(
+    // 3. Call GPT-4o-mini
+    console.log('  → Calling GPT-4o-mini...');
+    const aiContent = await openaiGenerate(
       BRIEF_SYSTEM_PROMPT,
       `Generate a comprehensive sales brief for: ${client_name}\n\nWeb search data collected (use the source titles when referencing data):\n\n${context}`
     );
-    console.log(`  ✅ Gemini brief generated for ${client_name} | Sources: ${sources.financial.length + sources.competitors.length + sources.news.length}`);
+    console.log(`  ✅ GPT-4o-mini brief generated for ${client_name} | Sources: ${sources.financial.length + sources.competitors.length + sources.news.length}`);
 
     // 4. Build and store brief
     const brief = {
@@ -443,6 +443,7 @@ ${formatResults(news)}
 
   } catch (err) {
     console.error('AI generation error:', err.message);
+    console.error('Gemini response data:', JSON.stringify(err.response?.data, null, 2));
     // Fallback to basic brief if AI fails
     const brief = {
       id: nextId('briefs'), user_id: req.user.id,

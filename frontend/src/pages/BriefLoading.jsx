@@ -7,7 +7,7 @@ const STEPS = [
   'Searching web for company data',
   'Analysing quarterly financials',
   'Comparing with competitors',
-  'Generating AI insights with Gemini Flash',
+  'Generating AI insights with GPT-4o-mini',
 ]
 
 export default function BriefLoading() {
