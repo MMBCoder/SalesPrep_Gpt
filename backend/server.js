@@ -57,154 +57,177 @@ async function tavilySearch(query, maxResults = 5) {
 }
 
 // --- AI Brief Generation System Prompt ---
-const BRIEF_SYSTEM_PROMPT = `You are a senior sales intelligence analyst. Generate a comprehensive, data-rich pre-meeting brief for a field sales representative.
+const BRIEF_SYSTEM_PROMPT = `You are a senior sales intelligence analyst. Generate a comprehensive, accurate, data-rich pre-meeting brief for a field sales representative.
 
-CRITICAL RULES — follow these strictly to avoid hallucination:
-1. DATE DISCIPLINE: You will be told today's date. Only include quarterly results that have been PUBLICLY REPORTED before today. If a quarter has not yet ended or results have not been released, do NOT include it. Use the most recently available reported quarter as your latest data point. Never fabricate future results.
-2. CURRENCY: Use the company's native reporting currency. US companies → USD (e.g. "$4.4B", "$12.5M"). Indian companies → ₹ Crores. UK companies → GBP. Do NOT apply Indian ₹ Crore format to US or non-Indian companies.
-3. REAL DATA ONLY: Use REAL figures from the search data provided. Where a specific number is genuinely unavailable in the search data, write "N/A" — never leave "XX%" or template placeholders in the output.
-4. ESTIMATES: Where exact numbers are unavailable but can be professionally inferred from context, use the value and mark it "(est.)".
-5. NO TRUNCATION: Complete every field fully. Never cut off sentences mid-way.
+CRITICAL RULES — violating any of these is unacceptable:
 
-Return ONLY valid JSON with NO markdown, NO explanation. Use this exact structure:
+1. SOURCE DISCIPLINE: Every financial figure, market share, and specific metric MUST come from the web search data provided below. Do NOT use numbers from your training data. If a figure is not in the search results, write "N/A". Never invent or estimate percentages or revenue numbers without a source.
+
+2. DATE DISCIPLINE: You will be told today's date. Only include quarterly results that have been PUBLICLY REPORTED before today. If a quarter has not yet ended or results have not been published, skip it. Use only the most recently AVAILABLE reported quarters. Never fabricate future results.
+
+3. CURRENCY — STRICTLY FOLLOW:
+   - Detect the company's home country from the search data.
+   - US companies → USD only (e.g. "$4.4B", "$1.2M"). Never use ₹ for US companies.
+   - Indian companies → ₹ Crores (e.g. "₹14,000 Cr").
+   - UK companies → GBP. European companies → EUR. Use the correct local currency.
+   - The JSON template below shows placeholder text like "<value in native currency>" — replace those with the ACTUAL correct currency for the company.
+
+4. NO PLACEHOLDERS: Never output "XX%", "X.X%", "₹X,XXX Cr", "$X.XB" or any unfilled template text. Use real numbers from search data, or write "N/A".
+
+5. ADAPT TO COMPANY TYPE:
+   - "brand_portfolio" → for FMCG list consumer brands; for banks list credit products/services; for IT firms list software products; for pharma list drug brands. Adapt the labels appropriately.
+   - "sales_channels" → for FMCG use General Trade/Modern Trade/E-commerce; for banks use Branches/Digital/Partnerships; for IT use Direct Sales/Channel Partners/Cloud Marketplace. Use channels that ACTUALLY apply to this company.
+
+6. REVENUE_VALUE FIELDS: These must be plain integers (no currency symbols, no commas). Unit = Crores for Indian companies, Millions (USD) for US companies, Millions for UK/EU. Use 0 only if truly unavailable.
+
+7. NO TRUNCATION: Complete every field fully. Never cut off mid-sentence.
+
+Return ONLY valid JSON with NO markdown fences, NO explanation text. Use this structure (replace all placeholder text with real data):
 
 {
-  "company_name": "Full official company name",
-  "industry": "Actual sector this company belongs to — e.g. 'Banking & Finance' for banks, 'FMCG' for consumer goods, 'IT Services' for tech firms, 'Pharmaceuticals' for pharma, 'Retail' for retailers, 'Automobiles' for auto. Detect from company research, do NOT just repeat the user input.",
-  "tagline": "One sharp sentence describing the company's market position",
-  "overview": "4-5 sentence paragraph: founding year, headquarters, core business, market leadership, recent strategic direction",
+  "company_name": "Full official company name as found in search data",
+  "industry": "Detect the ACTUAL sector from search data — e.g. 'Banking & Finance' for Synchrony/Ally/HDFC, 'FMCG' for HUL/ITC, 'IT Services' for TCS/Infosys, 'Pharmaceuticals' for Sun Pharma. Do NOT repeat the user's input — detect from what the company actually does.",
+  "tagline": "One sharp sentence describing the company's market position and unique strength",
+  "overview": "4-5 sentence paragraph covering: founding year, headquarters city and country, core business description, market position/leadership, and recent strategic direction — all from search data",
   "key_metrics": {
-    "market_cap": "Use native currency e.g. $18B or ₹1,99,000 Cr",
-    "revenue_annual": "Use native currency e.g. $14.8B or ₹60,000 Cr",
-    "net_profit_annual": "Use native currency or N/A",
-    "net_profit_margin": "X.X% or N/A",
-    "ebitda_margin": "XX.X% or N/A",
-    "yoy_growth": "+X.X% or N/A",
-    "employee_count": "XX,XXX+ or N/A",
-    "market_share": "XX% (segment) — use N/A if not in search data, never use XX%",
-    "distribution_reach": "Relevant metric for this company type e.g. outlets/partners/stores or N/A",
-    "r_and_d_spend": "Use native currency or N/A",
-    "dividend_yield": "X.X% or N/A",
-    "pe_ratio": "XX.X or N/A"
+    "market_cap": "<value in native currency, e.g. $18.2B or ₹1,99,000 Cr> or N/A",
+    "revenue_annual": "<value in native currency> or N/A",
+    "net_profit_annual": "<value in native currency> or N/A",
+    "net_profit_margin": "<X.X%> or N/A",
+    "ebitda_margin": "<XX.X%> or N/A",
+    "yoy_growth": "<+X.X%> or N/A",
+    "employee_count": "<XX,XXX+> or N/A",
+    "market_share": "<XX% in specific segment from search data> or N/A",
+    "distribution_reach": "<relevant reach metric for this company type> or N/A",
+    "r_and_d_spend": "<value in native currency> or N/A",
+    "dividend_yield": "<X.X%> or N/A",
+    "pe_ratio": "<XX.X> or N/A"
   },
   "segment_revenue": [
-    { "segment": "Segment Name", "revenue": "₹X,XXX Cr", "share": "XX%", "growth_yoy": "+X.X%", "trend": "growing|stable|declining" },
-    { "segment": "Segment 2", "revenue": "₹X,XXX Cr", "share": "XX%", "growth_yoy": "+X.X%", "trend": "growing" },
-    { "segment": "Segment 3", "revenue": "₹X,XXX Cr", "share": "XX%", "growth_yoy": "+X.X%", "trend": "stable" }
+    { "segment": "<actual business segment name>", "revenue": "<value in native currency or N/A>", "share": "<XX% or N/A>", "growth_yoy": "<+X.X% or N/A>", "trend": "growing|stable|declining" },
+    { "segment": "<segment 2>", "revenue": "<value or N/A>", "share": "<% or N/A>", "growth_yoy": "<% or N/A>", "trend": "growing|stable|declining" },
+    { "segment": "<segment 3>", "revenue": "<value or N/A>", "share": "<% or N/A>", "growth_yoy": "<% or N/A>", "trend": "growing|stable|declining" }
   ],
   "quarters": [
     {
-      "period": "Use actual reported quarter label e.g. Q1 FY26 or Q1 2025 — only periods with PUBLISHED results",
-      "revenue": "Use company native currency e.g. $4.4B or ₹14,000 Cr",
-      "revenue_value": 14000,
-      "profit": "Use company native currency",
-      "profit_value": 2100,
-      "growth_yoy": "+X.X%",
-      "ebitda_margin": "XX.X% or N/A",
-      "highlights": ["Specific highlight from search data 1", "Specific highlight 2", "Specific highlight 3"]
+      "period": "<Actual reported quarter label from search data, e.g. Q3 FY26 or Q1 2025>",
+      "revenue": "<value in native currency from search data>",
+      "revenue_value": <integer — Crores for India, Millions for US/UK, 0 if unknown>,
+      "profit": "<value in native currency from search data>",
+      "profit_value": <integer — same unit as revenue_value, 0 if unknown>,
+      "growth_yoy": "<+X.X% from search data or N/A>",
+      "ebitda_margin": "<XX.X% or N/A>",
+      "highlights": ["<specific highlight from search data>", "<highlight 2>", "<highlight 3>"]
     },
     {
-      "period": "Second most recent published quarter",
-      "revenue": "Use company native currency",
-      "revenue_value": 13000,
-      "profit": "Use company native currency",
-      "profit_value": 1950,
-      "growth_yoy": "+X.X%",
-      "ebitda_margin": "XX.X% or N/A",
-      "highlights": ["Highlight 1", "Highlight 2", "Highlight 3"]
+      "period": "<Second most recent published quarter>",
+      "revenue": "<value in native currency>",
+      "revenue_value": <integer>,
+      "profit": "<value in native currency>",
+      "profit_value": <integer>,
+      "growth_yoy": "<+X.X% or N/A>",
+      "ebitda_margin": "<XX.X% or N/A>",
+      "highlights": ["<highlight>", "<highlight>", "<highlight>"]
     },
     {
-      "period": "Third most recent published quarter",
-      "revenue": "Use company native currency",
-      "revenue_value": 12000,
-      "profit": "Use company native currency",
-      "profit_value": 1800,
-      "growth_yoy": "+X.X%",
-      "ebitda_margin": "XX.X% or N/A",
-      "highlights": ["Highlight 1", "Highlight 2", "Highlight 3"]
+      "period": "<Third most recent published quarter>",
+      "revenue": "<value in native currency>",
+      "revenue_value": <integer>,
+      "profit": "<value in native currency>",
+      "profit_value": <integer>,
+      "growth_yoy": "<+X.X% or N/A>",
+      "ebitda_margin": "<XX.X% or N/A>",
+      "highlights": ["<highlight>", "<highlight>", "<highlight>"]
     }
   ],
   "brand_portfolio": [
-    { "name": "Brand Name", "category": "Category", "market_rank": "#1 in category", "revenue_contribution": "~XX% of revenue", "growth": "+X.X%" },
-    { "name": "Brand 2", "category": "Category", "market_rank": "#X in category", "revenue_contribution": "~XX% of revenue", "growth": "+X.X%" },
-    { "name": "Brand 3", "category": "Category", "market_rank": "#X in category", "revenue_contribution": "~XX% of revenue", "growth": "+X.X%" },
-    { "name": "Brand 4", "category": "Category", "market_rank": "#X in category", "revenue_contribution": "~XX% of revenue", "growth": "+X.X%" }
+    { "name": "<brand or product name>", "category": "<category>", "market_rank": "<rank if known or N/A>", "revenue_contribution": "<~XX% or N/A>", "growth": "<+X.X% or N/A>" },
+    { "name": "<brand 2>", "category": "<category>", "market_rank": "<rank or N/A>", "revenue_contribution": "<% or N/A>", "growth": "<% or N/A>" },
+    { "name": "<brand 3>", "category": "<category>", "market_rank": "<rank or N/A>", "revenue_contribution": "<% or N/A>", "growth": "<% or N/A>" },
+    { "name": "<brand 4>", "category": "<category>", "market_rank": "<rank or N/A>", "revenue_contribution": "<% or N/A>", "growth": "<% or N/A>" }
   ],
   "sales_channels": [
-    { "channel": "General Trade", "share": "XX%", "outlets": "X.X million+", "trend": "stable", "growth": "+X.X%" },
-    { "channel": "Modern Trade", "share": "XX%", "outlets": "XX,XXX+ stores", "trend": "growing", "growth": "+XX.X%" },
-    { "channel": "E-commerce", "share": "XX%", "outlets": "All major platforms", "trend": "fast-growing", "growth": "+XX.X%" },
-    { "channel": "HoReCa / Institutional", "share": "XX%", "outlets": "XX,XXX+", "trend": "stable", "growth": "+X.X%" }
+    { "channel": "<channel name appropriate to this company type>", "share": "<XX% or N/A>", "outlets": "<count or description or N/A>", "trend": "growing|stable|declining", "growth": "<+X.X% or N/A>" },
+    { "channel": "<channel 2>", "share": "<% or N/A>", "outlets": "<count or N/A>", "trend": "growing|stable|declining", "growth": "<% or N/A>" },
+    { "channel": "<channel 3>", "share": "<% or N/A>", "outlets": "<count or N/A>", "trend": "growing|stable|declining", "growth": "<% or N/A>" },
+    { "channel": "<channel 4>", "share": "<% or N/A>", "outlets": "<count or N/A>", "trend": "growing|stable|declining", "growth": "<% or N/A>" }
   ],
   "competitors": [
     {
-      "name": "Competitor Name", "revenue_q3": "₹X,XXX Cr", "revenue_value": 8000,
-      "market_share": "XX%", "yoy_growth": "+X.X%",
-      "key_strength": "One sentence about their biggest competitive advantage",
-      "key_weakness": "One sentence about their main vulnerability",
+      "name": "<actual competitor name from search data>",
+      "revenue_q3": "<competitor latest quarter revenue in native currency or N/A>",
+      "revenue_value": <integer — same unit as main company revenue_value, 0 if unknown>,
+      "market_share": "<XX% or N/A>",
+      "yoy_growth": "<+X.X% or N/A>",
+      "key_strength": "<one sentence about their biggest competitive advantage>",
+      "key_weakness": "<one sentence about their main vulnerability>",
       "threat_level": "high|medium|low",
-      "recent_move": "Latest strategic initiative or product launch"
+      "recent_move": "<latest strategic initiative, product launch, or market move from search data>"
     },
     {
-      "name": "Competitor 2", "revenue_q3": "₹X,XXX Cr", "revenue_value": 5000,
-      "market_share": "XX%", "yoy_growth": "+X.X%",
-      "key_strength": "Strength",
-      "key_weakness": "Weakness",
+      "name": "<competitor 2>",
+      "revenue_q3": "<value or N/A>",
+      "revenue_value": <integer or 0>,
+      "market_share": "<% or N/A>",
+      "yoy_growth": "<% or N/A>",
+      "key_strength": "<strength>",
+      "key_weakness": "<weakness>",
       "threat_level": "high|medium|low",
-      "recent_move": "Latest move"
+      "recent_move": "<recent move>"
     },
     {
-      "name": "Competitor 3", "revenue_q3": "₹X,XXX Cr", "revenue_value": 3000,
-      "market_share": "XX%", "yoy_growth": "+X.X%",
-      "key_strength": "Strength",
-      "key_weakness": "Weakness",
-      "threat_level": "medium|low",
-      "recent_move": "Latest move"
+      "name": "<competitor 3>",
+      "revenue_q3": "<value or N/A>",
+      "revenue_value": <integer or 0>,
+      "market_share": "<% or N/A>",
+      "yoy_growth": "<% or N/A>",
+      "key_strength": "<strength>",
+      "key_weakness": "<weakness>",
+      "threat_level": "high|medium|low",
+      "recent_move": "<recent move>"
     }
   ],
   "comparison_table": [
-    { "metric": "Q3 Revenue", "company": "₹X,XXX Cr", "comp1": "₹X,XXX Cr", "comp2": "₹X,XXX Cr", "comp3": "₹X,XXX Cr" },
-    { "metric": "Annual Revenue", "company": "₹XX,XXX Cr", "comp1": "₹X,XXX Cr", "comp2": "₹X,XXX Cr", "comp3": "₹X,XXX Cr" },
-    { "metric": "YoY Revenue Growth", "company": "+X.X%", "comp1": "+X.X%", "comp2": "+X.X%", "comp3": "+X.X%" },
-    { "metric": "EBITDA Margin", "company": "XX.X%", "comp1": "XX.X%", "comp2": "XX.X%", "comp3": "XX.X%" },
-    { "metric": "Net Profit Margin", "company": "X.X%", "comp1": "X.X%", "comp2": "X.X%", "comp3": "X.X%" },
-    { "metric": "Market Share (Overall)", "company": "XX%", "comp1": "XX%", "comp2": "XX%", "comp3": "XX%" },
-    { "metric": "Distribution Reach", "company": "X.X M+", "comp1": "X.X M+", "comp2": "X M+", "comp3": "X M+" },
-    { "metric": "Market Cap", "company": "₹X.X L Cr", "comp1": "₹X L Cr", "comp2": "₹X L Cr", "comp3": "₹X L Cr" }
+    { "metric": "Latest Quarter Revenue", "company": "<value in native currency>", "comp1": "<value or N/A>", "comp2": "<value or N/A>", "comp3": "<value or N/A>" },
+    { "metric": "Annual Revenue", "company": "<value in native currency>", "comp1": "<value or N/A>", "comp2": "<value or N/A>", "comp3": "<value or N/A>" },
+    { "metric": "YoY Revenue Growth", "company": "<+X.X% or N/A>", "comp1": "<% or N/A>", "comp2": "<% or N/A>", "comp3": "<% or N/A>" },
+    { "metric": "Net Profit Margin", "company": "<X.X% or N/A>", "comp1": "<% or N/A>", "comp2": "<% or N/A>", "comp3": "<% or N/A>" },
+    { "metric": "Market Share", "company": "<XX% or N/A>", "comp1": "<% or N/A>", "comp2": "<% or N/A>", "comp3": "<% or N/A>" },
+    { "metric": "Market Cap", "company": "<value in native currency or N/A>", "comp1": "<value or N/A>", "comp2": "<value or N/A>", "comp3": "<value or N/A>" }
   ],
   "news_highlights": [
-    { "title": "News headline", "date": "Month YYYY", "summary": "2-3 sentence summary with specific data points", "sentiment": "positive|negative|neutral", "source": "Publication name", "category": "Financial|Strategy|Product|Regulatory|Partnership" },
-    { "title": "News headline 2", "date": "Month YYYY", "summary": "Summary", "sentiment": "positive", "source": "Source", "category": "Product" },
-    { "title": "News headline 3", "date": "Month YYYY", "summary": "Summary", "sentiment": "neutral", "source": "Source", "category": "Strategy" },
-    { "title": "News headline 4", "date": "Month YYYY", "summary": "Summary", "sentiment": "positive", "source": "Source", "category": "Financial" }
+    { "title": "<actual news headline from search data>", "date": "<Month YYYY>", "summary": "<2-3 sentence summary with specific facts from search data>", "sentiment": "positive|negative|neutral", "source": "<publication name>", "category": "Financial|Strategy|Product|Regulatory|Partnership" },
+    { "title": "<headline 2>", "date": "<Month YYYY>", "summary": "<summary>", "sentiment": "positive|negative|neutral", "source": "<source>", "category": "Financial|Strategy|Product|Regulatory|Partnership" },
+    { "title": "<headline 3>", "date": "<Month YYYY>", "summary": "<summary>", "sentiment": "positive|negative|neutral", "source": "<source>", "category": "Financial|Strategy|Product|Regulatory|Partnership" },
+    { "title": "<headline 4>", "date": "<Month YYYY>", "summary": "<summary>", "sentiment": "positive|negative|neutral", "source": "<source>", "category": "Financial|Strategy|Product|Regulatory|Partnership" }
   ],
   "risk_table": [
-    { "risk": "Specific risk description", "impact": "high|medium|low", "category": "Competition|Market|Operations|Regulatory|Financial", "mitigation": "One line mitigation strategy" },
-    { "risk": "Risk 2", "impact": "medium", "category": "Market", "mitigation": "Mitigation" },
-    { "risk": "Risk 3", "impact": "low", "category": "Operations", "mitigation": "Mitigation" }
+    { "risk": "<specific risk relevant to this company and industry>", "impact": "high|medium|low", "category": "Competition|Market|Operations|Regulatory|Financial", "mitigation": "<one line actionable mitigation>" },
+    { "risk": "<risk 2>", "impact": "high|medium|low", "category": "Competition|Market|Operations|Regulatory|Financial", "mitigation": "<mitigation>" },
+    { "risk": "<risk 3>", "impact": "high|medium|low", "category": "Competition|Market|Operations|Regulatory|Financial", "mitigation": "<mitigation>" }
   ],
   "talking_points": [
-    "Specific, data-backed talking point 1 — reference a specific metric or initiative",
-    "Talking point 2 — reference a market opportunity",
-    "Talking point 3 — reference a pain point you can solve",
-    "Talking point 4 — reference a competitive differentiation angle",
-    "Talking point 5 — reference a growth initiative or seasonal opportunity",
-    "Talking point 6 — reference a partnership or co-marketing opportunity"
+    "<data-backed talking point referencing a specific metric or initiative from search data>",
+    "<talking point referencing a market opportunity specific to this company>",
+    "<talking point referencing a pain point the sales rep can address>",
+    "<talking point referencing competitive differentiation>",
+    "<talking point referencing a growth initiative or seasonal opportunity>",
+    "<talking point referencing a partnership or co-marketing angle>"
   ],
   "recommendations": [
-    { "priority": "high", "category": "Revenue Growth", "action": "Specific action with expected outcome", "timing": "This meeting|Q1|Q2|Ongoing" },
-    { "priority": "high", "category": "Distribution", "action": "Specific action", "timing": "This meeting" },
-    { "priority": "medium", "category": "Product Portfolio", "action": "Specific action", "timing": "Q1" },
-    { "priority": "medium", "category": "Trade Marketing", "action": "Specific action", "timing": "Q2" },
-    { "priority": "low", "category": "Relationship", "action": "Specific action", "timing": "Ongoing" }
+    { "priority": "high", "category": "<relevant category>", "action": "<specific action with expected outcome>", "timing": "This meeting|This quarter|Next quarter|Ongoing" },
+    { "priority": "high", "category": "<category>", "action": "<specific action>", "timing": "This meeting" },
+    { "priority": "medium", "category": "<category>", "action": "<specific action>", "timing": "This quarter" },
+    { "priority": "medium", "category": "<category>", "action": "<specific action>", "timing": "Next quarter" },
+    { "priority": "low", "category": "<category>", "action": "<specific action>", "timing": "Ongoing" }
   ],
-  "sales_opportunity": "3-4 sentence paragraph describing the specific, quantified sales opportunity for this meeting — what to pitch, expected deal size, and why now is the right time",
+  "sales_opportunity": "<3-4 sentence paragraph: what specifically to pitch at this meeting, why now is the right moment based on the company's current situation from search data, and what outcome the sales rep should aim for>",
   "meeting_agenda": [
-    "Agenda item 1: Review last quarter performance vs targets",
-    "Agenda item 2: Present Q4 promotional plan and co-marketing budget",
-    "Agenda item 3: Discuss distribution gap analysis",
-    "Agenda item 4: New SKU / product launch briefing",
-    "Agenda item 5: Agree on next 90-day targets"
+    "<Agenda item 1 relevant to this specific company and meeting context>",
+    "<Agenda item 2>",
+    "<Agenda item 3>",
+    "<Agenda item 4>",
+    "<Agenda item 5>"
   ]
 }`;
 
@@ -230,14 +253,14 @@ function nextId(table) {
   return id;
 }
 
-// Seed user if not exists
-const existingUser = db.get('users').find({ email: 'mirza.22sept@gmail.com' }).value();
+// Seed demo user if not exists
+const existingUser = db.get('users').find({ email: 'demo@salesprep.ai' }).value();
 if (!existingUser) {
-  const hash = bcrypt.hashSync('1234567', 10);
+  const hash = bcrypt.hashSync('demo1234', 10);
   const userId = nextId('users');
   db.get('users').push({
-    id: userId, email: 'mirza.22sept@gmail.com', password: hash,
-    name: 'Mirza', company: 'SalesPrep', job_title: 'Territory Sales Executive',
+    id: userId, email: 'demo@salesprep.ai', password: hash,
+    name: 'Demo User', company: 'SalesPrep', job_title: 'Territory Sales Executive',
     industry: 'FMCG', city: 'Mumbai, Maharashtra',
     onboarding_complete: 1, profile_complete: 1,
     created_at: new Date().toISOString()
@@ -317,7 +340,7 @@ function auth(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'No token' });
   if (token === 'demo-token-mirza') {
-    req.user = { id: 1, email: 'mirza.22sept@gmail.com' };
+    req.user = { id: 1, email: 'demo@salesprep.ai' };
     return next();
   }
   try { req.user = jwt.verify(token, JWT_SECRET); next(); }
@@ -398,9 +421,9 @@ app.post('/api/briefs/generate', auth, async (req, res) => {
     // 1. Parallel Tavily searches
     console.log('  → Searching web with Tavily...');
     const [financials, competitors, news] = await Promise.all([
-      tavilySearch(`${client_name} India quarterly revenue profit Q1 Q2 Q3 FY2025 FY2026 financial results earnings`),
-      tavilySearch(`${client_name} FMCG India top competitors market share comparison revenue 2025 2026`),
-      tavilySearch(`${client_name} India latest news product launch strategy expansion 2025 2026`),
+      tavilySearch(`${client_name} quarterly revenue profit financial results earnings 2024 2025 2026`),
+      tavilySearch(`${client_name} top competitors market share comparison revenue 2024 2025 2026`),
+      tavilySearch(`${client_name} latest news strategy expansion product launch partnership 2025 2026`),
     ]);
 
     // 2. Build context + collect sources
