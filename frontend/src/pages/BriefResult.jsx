@@ -5,6 +5,32 @@ import AIBriefContent from '../components/AIBriefContent'
 import { exportBriefPDF } from '../utils/exportPDF'
 import api from '../api'
 
+const SECTOR_RULES = [
+  { sector: 'Banking & Finance',    words: ['bank', 'financial service', 'credit card', 'credit product', 'payment solution', 'lending', 'loan', 'insurance', 'wealth management', 'asset management', 'brokerage', 'fintech', 'mortgage'] },
+  { sector: 'Pharmaceuticals',      words: ['pharma', 'drug', 'medicine', 'therapeutic', 'biotech', 'clinical', 'healthcare product', 'formulation'] },
+  { sector: 'Healthcare',           words: ['hospital', 'healthcare service', 'medical device', 'diagnostic', 'health system'] },
+  { sector: 'IT Services',          words: ['software', 'it service', 'cloud computing', 'saas', 'enterprise software', 'digital transformation', 'information technology'] },
+  { sector: 'Telecommunications',   words: ['telecom', 'mobile network', 'wireless', 'broadband', 'internet service provider'] },
+  { sector: 'Automobiles',          words: ['automobile', 'automotive', 'vehicle', 'car manufacturer', 'electric vehicle', 'two-wheeler'] },
+  { sector: 'Retail',               words: ['retail chain', 'e-commerce', 'supermarket', 'hypermarket', 'department store'] },
+  { sector: 'Energy',               words: ['oil and gas', 'petroleum', 'renewable energy', 'power generation', 'electricity distribution'] },
+  { sector: 'Metals & Mining',      words: ['steel', 'aluminium', 'mining', 'iron ore', 'cement'] },
+  { sector: 'Media & Entertainment',words: ['media', 'entertainment', 'broadcasting', 'streaming', 'film', 'television'] },
+]
+
+function detectSector(brief) {
+  const ai = brief.ai_content
+  // If AI returned a sector that differs from user's stored input, trust it
+  if (ai?.industry && ai.industry !== brief.industry) return ai.industry
+  // Otherwise scan overview + tagline text for sector signals
+  const text = ((ai?.overview || '') + ' ' + (ai?.tagline || '')).toLowerCase()
+  for (const { sector, words } of SECTOR_RULES) {
+    if (words.some(w => text.includes(w))) return sector
+  }
+  // Fall back: whatever the brief has stored
+  return brief.industry || 'FMCG'
+}
+
 export default function BriefResult() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -31,7 +57,7 @@ export default function BriefResult() {
           <div className="flex items-start justify-between mb-6">
             <div>
               <span className="bg-primary text-white text-[16px] font-semibold px-4 py-1.5 rounded-full">
-                {brief.ai_content?.industry || brief.industry || 'FMCG'} • {brief.client_type || 'Distributor'}
+                {detectSector(brief)} • {brief.client_type || 'Distributor'}
               </span>
               <h1 className="text-[36px] font-bold text-[#000] mt-3">{brief.client_name}</h1>
             </div>

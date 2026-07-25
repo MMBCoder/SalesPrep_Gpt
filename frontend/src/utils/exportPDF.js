@@ -1,6 +1,29 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
+// ── Sector detection (mirrors BriefResult.jsx — keeps existing briefs correct) ─
+const SECTOR_RULES = [
+  { sector: 'Banking & Finance',    words: ['bank', 'financial service', 'credit card', 'credit product', 'payment solution', 'lending', 'loan', 'insurance', 'wealth management', 'asset management', 'brokerage', 'fintech', 'mortgage'] },
+  { sector: 'Pharmaceuticals',      words: ['pharma', 'drug', 'medicine', 'therapeutic', 'biotech', 'clinical', 'healthcare product', 'formulation'] },
+  { sector: 'Healthcare',           words: ['hospital', 'healthcare service', 'medical device', 'diagnostic', 'health system'] },
+  { sector: 'IT Services',          words: ['software', 'it service', 'cloud computing', 'saas', 'enterprise software', 'digital transformation', 'information technology'] },
+  { sector: 'Telecommunications',   words: ['telecom', 'mobile network', 'wireless', 'broadband', 'internet service provider'] },
+  { sector: 'Automobiles',          words: ['automobile', 'automotive', 'vehicle', 'car manufacturer', 'electric vehicle', 'two-wheeler'] },
+  { sector: 'Retail',               words: ['retail chain', 'e-commerce', 'supermarket', 'hypermarket', 'department store'] },
+  { sector: 'Energy',               words: ['oil and gas', 'petroleum', 'renewable energy', 'power generation', 'electricity distribution'] },
+  { sector: 'Metals & Mining',      words: ['steel', 'aluminium', 'mining', 'iron ore', 'cement'] },
+  { sector: 'Media & Entertainment',words: ['media', 'entertainment', 'broadcasting', 'streaming', 'film', 'television'] },
+]
+
+function detectSector(brief, ai) {
+  if (ai?.industry && ai.industry !== brief.industry) return ai.industry
+  const text = ((ai?.overview || '') + ' ' + (ai?.tagline || '')).toLowerCase()
+  for (const { sector, words } of SECTOR_RULES) {
+    if (words.some(w => text.includes(w))) return sector
+  }
+  return brief.industry || 'FMCG'
+}
+
 // ── Colours ──────────────────────────────────────────────────────────────────
 const C = {
   primary:      [29, 106, 74],
@@ -103,7 +126,7 @@ function buildCover(doc, brief, ai) {
   doc.text(brief.client_name || '', ML, y); y += 12
 
   // Industry pill
-  chip(doc, `${ai?.industry || brief.industry || 'FMCG'}  •  ${brief.client_type || 'Distributor'}`, ML, y); y += 10
+  chip(doc, `${detectSector(brief, ai)}  •  ${brief.client_type || 'Distributor'}`, ML, y); y += 10
 
   // Meta line
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...C.gray)
