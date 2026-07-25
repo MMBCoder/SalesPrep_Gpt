@@ -201,7 +201,8 @@ app.use(cors({
 app.use(express.json());
 
 // --- JSON DB setup ---
-const adapter = new FileSync(path.join(__dirname, 'db.json'));
+const dbPath = process.env.VERCEL ? '/tmp/db.json' : path.join(__dirname, 'db.json');
+const adapter = new FileSync(dbPath);
 const db = low(adapter);
 
 db.defaults({ users: [], clients: [], briefs: [], _nextId: { users: 1, clients: 1, briefs: 1 } }).write();
