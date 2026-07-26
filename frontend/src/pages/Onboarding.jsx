@@ -27,11 +27,12 @@ const slides = [
 export default function Onboarding() {
   const [step, setStep] = useState(0)
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, setUser } = useAuth()
 
   const handleFinish = async () => {
-    await api.put('/me/onboarding')
-    navigate('/profile-setup')
+    try { await api.put('/me/onboarding') } catch (_) {}
+    setUser(u => ({ ...u, onboarding_complete: 1 }))
+    navigate(user?.profile_complete ? '/dashboard' : '/profile-setup')
   }
 
   return (
