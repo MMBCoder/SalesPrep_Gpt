@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Sidebar from '../components/Sidebar'
+import Sidebar, { SidebarToggle } from '../components/Sidebar'
 import { exportBriefPDF } from '../utils/exportPDF'
 import api from '../api'
 
@@ -35,35 +35,41 @@ export default function MyBriefs() {
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <div className="flex-1 overflow-y-auto bg-white p-8">
+      <div className="flex-1 overflow-y-auto bg-white p-4 md:p-8">
+        {/* Mobile top bar */}
+        <div className="flex items-center gap-3 mb-4 md:hidden">
+          <SidebarToggle />
+          <span className="font-bold text-lg text-[#000]">My Briefs</span>
+        </div>
+
         {/* Header */}
-        <div className="flex items-start justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6 md:mb-8">
           <div>
-            <h1 className="text-[36px] font-bold text-[#000]">My Briefs</h1>
-            <p className="text-[18px] text-gray-label mt-1">All {briefs.length} briefs across your accounts</p>
+            <h1 className="text-[26px] md:text-[36px] font-bold text-[#000]">My Briefs</h1>
+            <p className="text-[15px] md:text-[18px] text-gray-label mt-1">All {briefs.length} briefs across your accounts</p>
           </div>
-          <button onClick={() => navigate('/dashboard')} className="bg-primary text-white font-bold text-[16px] px-6 py-3 rounded-xl hover:opacity-90">
+          <button onClick={() => navigate('/dashboard')} className="bg-primary text-white font-bold text-[14px] md:text-[16px] px-5 py-2.5 md:px-6 md:py-3 rounded-xl hover:opacity-90 self-start">
             + Generate New
           </button>
         </div>
 
         {/* Search + Filters */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="relative flex-1 max-w-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6 md:mb-8">
+          <div className="relative flex-1 sm:max-w-sm">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">🔍</span>
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search by client name..."
-              className="w-full bg-input-bg rounded-xl pl-11 pr-4 py-3 text-[15px] outline-none border-2 border-transparent focus:border-primary"
+              className="w-full bg-input-bg rounded-xl pl-11 pr-4 py-3 text-[14px] md:text-[15px] outline-none border-2 border-transparent focus:border-primary"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
             {['all', ...industries].map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-4 py-2 rounded-xl text-[14px] font-semibold transition-colors ${filter === f ? 'bg-primary text-white' : 'bg-input-bg text-gray-label hover:bg-gray-200'}`}
+                className={`px-4 py-2 rounded-xl text-[13px] md:text-[14px] font-semibold transition-colors flex-shrink-0 ${filter === f ? 'bg-primary text-white' : 'bg-input-bg text-gray-label hover:bg-gray-200'}`}
               >
                 {f === 'all' ? 'All' : f}
               </button>
@@ -71,22 +77,22 @@ export default function MyBriefs() {
           </div>
         </div>
 
-        {/* Cards Grid */}
+        {/* Cards Grid — 1 col mobile, 2 col tablet, 3 col desktop */}
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-gray-label">
             <p className="text-[18px] font-semibold mb-2">No briefs found</p>
             <p className="text-[14px]">Try a different filter or generate a new brief</p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {filtered.map(brief => {
               const colorClass = INDUSTRY_COLORS[brief.industry] || 'bg-gray-100 text-gray-700'
               const isAI = !!brief.ai_content
               return (
-                <div key={brief.id} className="bg-white border border-gray-border rounded-2xl p-6 hover:shadow-md transition-shadow group">
+                <div key={brief.id} className="bg-white border border-gray-border rounded-2xl p-5 md:p-6 hover:shadow-md transition-shadow group">
                   {/* Top row */}
                   <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white font-bold text-[20px]">
+                    <div className="w-11 h-11 md:w-12 md:h-12 rounded-xl bg-primary flex items-center justify-center text-white font-bold text-[18px] md:text-[20px]">
                       {brief.client_name.charAt(0)}
                     </div>
                     <div className="flex items-center gap-2">
@@ -95,50 +101,44 @@ export default function MyBriefs() {
                     </div>
                   </div>
 
-                  {/* Company name */}
-                  <h3 className="text-[18px] font-bold text-[#000] mb-1 leading-tight">{brief.client_name}</h3>
-                  <p className="text-[13px] text-gray-label mb-4">{brief.client_type || 'Distributor'}</p>
+                  <h3 className="text-[17px] md:text-[18px] font-bold text-[#000] mb-1 leading-tight">{brief.client_name}</h3>
+                  <p className="text-[12px] md:text-[13px] text-gray-label mb-4">{brief.client_type || 'Distributor'}</p>
 
-                  {/* AI tagline if available */}
                   {brief.ai_content?.tagline && (
-                    <p className="text-[13px] text-gray-label italic mb-4 line-clamp-2">{brief.ai_content.tagline}</p>
+                    <p className="text-[12px] md:text-[13px] text-gray-label italic mb-4 line-clamp-2">{brief.ai_content.tagline}</p>
                   )}
 
-                  {/* Key metrics preview */}
                   {brief.ai_content?.key_metrics && (
                     <div className="grid grid-cols-2 gap-2 mb-4">
                       {Object.entries(brief.ai_content.key_metrics).slice(0, 4).map(([k, v]) => (
                         <div key={k} className="bg-input-bg rounded-lg px-3 py-2">
                           <p className="text-[10px] text-gray-label uppercase tracking-wide">{k.replace(/_/g, ' ')}</p>
-                          <p className="text-[13px] font-bold text-[#000] truncate">{v}</p>
+                          <p className="text-[12px] md:text-[13px] font-bold text-[#000] truncate">{v}</p>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  {/* Meeting info */}
                   {brief.meeting_date && (
-                    <div className="flex items-center gap-2 text-[13px] text-gray-label mb-4">
+                    <div className="flex items-center gap-2 text-[12px] md:text-[13px] text-gray-label mb-4">
                       <span>📅</span>
                       <span>{brief.meeting_date}</span>
                       {brief.meeting_time && <span>• {brief.meeting_time}</span>}
                     </div>
                   )}
 
-                  {/* Rating */}
                   {brief.rating ? (
-                    <div className="text-[14px] mb-4">{ratingStars(brief.rating)} <span className="text-gray-label text-[12px]">{brief.rating}/5</span></div>
+                    <div className="text-[13px] md:text-[14px] mb-4">{ratingStars(brief.rating)} <span className="text-gray-label text-[12px]">{brief.rating}/5</span></div>
                   ) : (
-                    <div className="text-[13px] text-gray-400 mb-4">Not rated yet</div>
+                    <div className="text-[12px] md:text-[13px] text-gray-400 mb-4">Not rated yet</div>
                   )}
 
-                  {/* Date */}
-                  <p className="text-[12px] text-gray-400 mb-5">
+                  <p className="text-[11px] md:text-[12px] text-gray-400 mb-5">
                     {new Date(brief.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
 
-                  {/* Actions */}
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Actions — always visible on mobile, hover on desktop */}
+                  <div className="flex gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => navigate(`/briefs/${brief.id}`)}
                       className="flex-1 bg-primary text-white text-[13px] font-bold py-2 rounded-lg hover:opacity-90"

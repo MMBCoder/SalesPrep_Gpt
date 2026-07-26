@@ -139,7 +139,7 @@ export default function AIBriefContent({ data, sources }) {
         <p className="text-[15px] leading-relaxed text-[#444] mb-6">{overview}</p>
 
         {/* KPI Strip */}
-        <div className="grid grid-cols-4 gap-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
             { label: 'Market Cap', value: key_metrics?.market_cap, hi: true },
             { label: 'Annual Revenue', value: key_metrics?.revenue_annual },
@@ -167,7 +167,7 @@ export default function AIBriefContent({ data, sources }) {
         <SectionTitle icon="📊">Quarterly Financial Performance</SectionTitle>
 
         {/* Quarter cards */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {quarters.map((q, i) => (
             <div key={q.period} onClick={() => setActiveQuarter(i)}
               className={`rounded-xl p-4 cursor-pointer transition-all border-2 ${activeQuarter === i ? 'border-primary bg-primary text-white' : 'border-transparent bg-input-bg hover:border-primary/40'}`}>
@@ -187,7 +187,7 @@ export default function AIBriefContent({ data, sources }) {
         {quarters[activeQuarter]?.highlights?.length > 0 && (
           <div className="bg-input-bg rounded-xl p-4 mb-6">
             <p className="text-[12px] font-bold text-gray-label uppercase tracking-wider mb-3">{quarters[activeQuarter].period} Highlights</p>
-            <ul className="grid grid-cols-2 gap-2">
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {quarters[activeQuarter].highlights.map((h, i) => (
                 <li key={i} className="flex items-start gap-2 text-[13px] text-[#333]">
                   <span className="text-primary mt-0.5 flex-shrink-0 font-bold">•</span> {h}
@@ -240,7 +240,7 @@ export default function AIBriefContent({ data, sources }) {
 
       {/* ── 3. SEGMENT & CHANNELS ────────────────────────────────────── */}
       {(segment_revenue.length > 0 || sales_channels.length > 0) && (
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
           {/* Segment Revenue */}
           {segment_revenue.length > 0 && (
@@ -343,7 +343,7 @@ export default function AIBriefContent({ data, sources }) {
         <SectionTitle icon="⚔️">Competitive Landscape</SectionTitle>
 
         {/* Competitor cards */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
           {competitors.map((c, i) => (
             <div key={i} className="border border-gray-200 rounded-xl p-4">
               <div className="flex items-start justify-between mb-3">
@@ -430,7 +430,7 @@ export default function AIBriefContent({ data, sources }) {
       {news_highlights.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-2xl p-6">
           <SectionTitle icon="📰">Market Intelligence & News</SectionTitle>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {news_highlights.map((n, i) => (
               <div key={i} className="border border-gray-200 rounded-xl p-4 hover:border-primary/50 hover:shadow-sm transition-all">
                 <div className="flex items-start gap-3 mb-2">
@@ -469,7 +469,7 @@ export default function AIBriefContent({ data, sources }) {
       )}
 
       {/* ── 7. SALES BATTLE CARD ─────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white border border-gray-200 rounded-2xl p-6">
           <SectionTitle icon="💬">Key Talking Points</SectionTitle>
           <ol className="space-y-3">
@@ -512,7 +512,8 @@ export default function AIBriefContent({ data, sources }) {
       {risks.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-2xl p-6">
           <SectionTitle icon="⚠️">Risk Assessment</SectionTitle>
-          <table className="w-full text-[12px]">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-[12px]">
             <thead>
               <tr className="bg-red-50">
                 <th className="text-left px-4 py-3 font-bold text-red-800 rounded-tl-lg">Risk</th>
@@ -532,6 +533,7 @@ export default function AIBriefContent({ data, sources }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -539,7 +541,8 @@ export default function AIBriefContent({ data, sources }) {
       {recommendations.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-2xl p-6">
           <SectionTitle icon="🚀">Strategic Action Plan</SectionTitle>
-          <table className="w-full text-[12px]">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] text-[12px]">
             <thead>
               <tr className="bg-[#F8FAF9]">
                 <th className="text-left px-4 py-3 font-bold text-gray-label rounded-tl-lg w-20">Priority</th>
@@ -563,6 +566,7 @@ export default function AIBriefContent({ data, sources }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -581,7 +585,7 @@ export default function AIBriefContent({ data, sources }) {
                   <span className="w-2 h-2 rounded-full bg-primary inline-block" />
                   {cat} ({catSources.length} sources)
                 </p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {catSources.map((s, i) => <SourceLink key={i} title={s.title} url={s.url} index={i} />)}
                 </div>
               </div>

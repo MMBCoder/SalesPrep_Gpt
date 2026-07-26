@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Sidebar from '../components/Sidebar'
+import Sidebar, { SidebarToggle } from '../components/Sidebar'
 import { useAuth } from '../App'
 import api from '../api'
 
@@ -45,10 +45,15 @@ export default function Settings() {
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <div className="flex-1 overflow-y-auto bg-white p-8">
+      <div className="flex-1 overflow-y-auto bg-white p-4 md:p-8">
+        {/* Mobile top bar */}
+        <div className="flex items-center gap-3 mb-4 md:hidden">
+          <SidebarToggle />
+          <span className="font-bold text-lg text-[#000]">Settings</span>
+        </div>
         <div className="max-w-2xl">
-          <h1 className="text-[36px] font-bold text-[#000] mb-2">Settings</h1>
-          <p className="text-[18px] text-gray-label mb-10">Manage your profile and account preferences.</p>
+          <h1 className="text-[26px] md:text-[36px] font-bold text-[#000] mb-2">Settings</h1>
+          <p className="text-[15px] md:text-[18px] text-gray-label mb-8 md:mb-10">Manage your profile and account preferences.</p>
 
           {/* Profile Avatar */}
           <div className="flex items-center gap-6 mb-10">
@@ -69,7 +74,7 @@ export default function Settings() {
                 <div className="w-1 h-6 bg-primary rounded-full" />
                 Personal Information
               </h2>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[14px] font-semibold text-gray-label mb-2">Full Name</label>
                   <input
@@ -110,7 +115,7 @@ export default function Settings() {
                     placeholder="e.g. SalesPrep India Pvt. Ltd."
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[14px] font-semibold text-gray-label mb-2">Job Title</label>
                     <input
