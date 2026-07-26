@@ -32,10 +32,25 @@ async function openaiGenerate(systemPrompt, userMessage) {
     ],
     response_format: { type: 'json_object' },
     temperature: 0.3,
-    max_tokens: 8192,
+    max_tokens: 16000,
   });
   const text = res.choices[0].message.content || '';
-  return JSON.parse(text);
+  const finishReason = res.choices[0].finish_reason;
+  if (finishReason === 'length') {
+    console.warn('⚠️  OpenAI response truncated (finish_reason=length) — attempting JSON recovery');
+  }
+  try {
+    return JSON.parse(text);
+  } catch (parseErr) {
+    // Attempt to salvage truncated JSON by closing open structures
+    const trimmed = text.trimEnd();
+    const lastBrace = trimmed.lastIndexOf('}');
+    if (lastBrace > 0) {
+      try { return JSON.parse(trimmed.slice(0, lastBrace + 1) + '}'); } catch {}
+    }
+    console.error('JSON parse failed. First 500 chars:', text.slice(0, 500));
+    throw new Error(`JSON parse failed after OpenAI response (finish_reason=${finishReason}): ${parseErr.message}`);
+  }
 }
 
 // --- Tavily search helper ---
@@ -598,7 +613,8 @@ Segments: ${JSON.stringify(extracted.segments || [])}
 
   } catch (err) {
     console.error('AI generation error:', err.message);
-    console.error('Gemini response data:', JSON.stringify(err.response?.data, null, 2));
+    console.error('Status:', err.status, '| Type:', err.type || err.code);
+    if (err.error) console.error('API error body:', JSON.stringify(err.error, null, 2));
     // Fallback to basic brief if AI fails
     const brief = {
       id: nextId('briefs'), user_id: req.user.id,
