@@ -616,16 +616,21 @@ Segments: ${JSON.stringify(extracted.segments || [])}
     res.json(brief);
 
   } catch (err) {
-    console.error('AI generation error:', {
+    // Log every property on the error so Vercel logs show the exact cause
+    console.error('AI generation error:', JSON.stringify({
       message: err.message,
+      name: err.name,
       http_status: err.status ?? null,
       error_type: err.errorType ?? err.type ?? null,
       error_code: err.errorCode ?? err.code ?? null,
       request_id: err.requestId ?? null,
       retries: err.retriesAttempted ?? null,
-      stack: err.stack ?? null,
-    });
-    const userMessage = err.userMessage || 'Brief generation failed — please try again.';
+      has_user_message: !!err.userMessage,
+      stack: (err.stack || '').split('\n').slice(0, 6).join(' | '),
+    }));
+    // Include the raw error message in the UI so the user can see what actually failed
+    const userMessage = err.userMessage
+      || `Generation error: ${err.message || 'unknown'} — please try again.`;
     const brief = {
       id: nextId('briefs'), user_id: req.user.id,
       client_name, industry: industry || 'FMCG', client_type: client_type || 'Distributor',
@@ -743,6 +748,19 @@ app.get('/api/auth/google/callback', async (req, res) => {
     console.error('Google OAuth error:', err.message);
     res.redirect(`${FRONTEND_URL}/login?error=google_failed`);
   }
+});
+
+// ─── Env-var diagnostic (admin key required) ──────────────────────────────
+
+app.get('/api/debug/env', (req, res) => {
+  if (req.query.key !== 'salesprep-admin-2026') return res.status(403).json({ error: 'Forbidden' });
+  const vars = ['OPENAI_API_KEY', 'TAVILY_API_KEY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'FRONTEND_URL', 'BACKEND_URL', 'JWT_SECRET'];
+  const report = {};
+  vars.forEach(v => {
+    const val = process.env[v] || '';
+    report[v] = val ? `SET (${val.length} chars, starts: ${val.slice(0, 8)}...)` : 'MISSING';
+  });
+  res.json(report);
 });
 
 // ─── OpenAI health check endpoint ─────────────────────────────────────────
