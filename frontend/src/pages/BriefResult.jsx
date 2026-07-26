@@ -93,7 +93,7 @@ export default function BriefResult() {
                 <span className="text-amber-500 text-xl mt-0.5">⚠️</span>
                 <div>
                   <p className="text-[15px] font-semibold text-amber-800">AI brief generation failed</p>
-                  <p className="text-[13px] text-amber-700 mt-1">The OpenAI API key may be invalid or quota exceeded. Check <code className="bg-amber-100 px-1 rounded">backend/.env</code> and regenerate this brief.</p>
+                  <p className="text-[13px] text-amber-700 mt-1">{brief.ai_error || 'Generation failed — please regenerate this brief.'}</p>
                 </div>
               </div>
               <div className="bg-input-bg rounded-xl p-6 md:p-8 mb-6">

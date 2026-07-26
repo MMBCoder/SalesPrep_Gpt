@@ -8,6 +8,7 @@ const FileSync = require('lowdb/adapters/FileSync');
 const path = require('path');
 const axios = require('axios');
 const OpenAI = require('openai');
+const OpenAIWrapper = require('./lib/openai-wrapper');
 
 const app = express();
 const PORT = 3001;
@@ -20,11 +21,13 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const BACKEND_URL  = process.env.BACKEND_URL  || 'http://localhost:3001';
 
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+// 90-second timeout per request; wrapper handles retry + logging
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY, timeout: 90000 });
+const openaiWrapper = new OpenAIWrapper(openai);
 
 // --- OpenAI GPT-4o-mini generate helper ---
 async function openaiGenerate(systemPrompt, userMessage) {
-  const res = await openai.chat.completions.create({
+  const { data: res } = await openaiWrapper.chatComplete({
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: systemPrompt },
@@ -42,14 +45,13 @@ async function openaiGenerate(systemPrompt, userMessage) {
   try {
     return JSON.parse(text);
   } catch (parseErr) {
-    // Attempt to salvage truncated JSON by closing open structures
     const trimmed = text.trimEnd();
     const lastBrace = trimmed.lastIndexOf('}');
     if (lastBrace > 0) {
       try { return JSON.parse(trimmed.slice(0, lastBrace + 1) + '}'); } catch {}
     }
     console.error('JSON parse failed. First 500 chars:', text.slice(0, 500));
-    throw new Error(`JSON parse failed after OpenAI response (finish_reason=${finishReason}): ${parseErr.message}`);
+    throw new Error(`JSON parse failed (finish_reason=${finishReason}): ${parseErr.message}`);
   }
 }
 
@@ -612,17 +614,23 @@ Segments: ${JSON.stringify(extracted.segments || [])}
     res.json(brief);
 
   } catch (err) {
-    console.error('AI generation error:', err.message);
-    console.error('Status:', err.status, '| Type:', err.type || err.code);
-    if (err.error) console.error('API error body:', JSON.stringify(err.error, null, 2));
-    // Fallback to basic brief if AI fails
+    console.error('AI generation error:', {
+      message: err.message,
+      http_status: err.status ?? null,
+      error_type: err.errorType ?? err.type ?? null,
+      error_code: err.errorCode ?? err.code ?? null,
+      request_id: err.requestId ?? null,
+      retries: err.retriesAttempted ?? null,
+    });
+    const userMessage = err.userMessage || 'Brief generation failed — please try again.';
     const brief = {
       id: nextId('briefs'), user_id: req.user.id,
       client_name, industry: industry || 'FMCG', client_type: client_type || 'Distributor',
       meeting_date: meeting_date || '', meeting_time: meeting_time || '', meeting_location: meeting_location || '',
-      company_background: `${client_name} is a leading FMCG company in India with a strong market presence.`,
+      company_background: '',
       recent_news: [],
       ai_content: null,
+      ai_error: userMessage,
       rating: null, status: 'active', created_at: new Date().toISOString()
     };
     db.get('briefs').push(brief).write();
@@ -734,9 +742,33 @@ app.get('/api/auth/google/callback', async (req, res) => {
   }
 });
 
+// ─── OpenAI health check endpoint ─────────────────────────────────────────
+
+app.get('/api/health/openai', async (req, res) => {
+  const result = await openaiWrapper.healthCheck();
+  res.status(result.success ? 200 : 503).json(result);
+});
+
 // ─── Start / Export ───────────────────────────────────────────────────────
 
+async function validateOpenAIKey() {
+  if (!OPENAI_API_KEY) {
+    console.error('❌ OPENAI_API_KEY is not set — AI brief generation will fail');
+    return;
+  }
+  console.log('🔍 Validating OpenAI API key...');
+  const result = await openaiWrapper.healthCheck();
+  if (result.success) {
+    console.log(`✅ OpenAI key valid — latency ${result.latency_ms}ms, request_id=${result.request_id}`);
+  } else {
+    console.error(`❌ OpenAI key validation failed — ${result.error} (http_status=${result.http_status})`);
+  }
+}
+
 if (require.main === module) {
-  app.listen(PORT, () => console.log(`✅ SalesPrep backend running on http://localhost:${PORT}`));
+  app.listen(PORT, async () => {
+    console.log(`✅ SalesPrep backend running on http://localhost:${PORT}`);
+    await validateOpenAIKey();
+  });
 }
 module.exports = app;
