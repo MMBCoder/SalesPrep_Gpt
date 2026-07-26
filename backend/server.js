@@ -50,8 +50,10 @@ async function openaiGenerate(systemPrompt, userMessage) {
     if (lastBrace > 0) {
       try { return JSON.parse(trimmed.slice(0, lastBrace + 1) + '}'); } catch {}
     }
-    console.error('JSON parse failed. First 500 chars:', text.slice(0, 500));
-    throw new Error(`JSON parse failed (finish_reason=${finishReason}): ${parseErr.message}`);
+    console.error('JSON parse failed. finish_reason=' + finishReason + ' First 500 chars:', text.slice(0, 500));
+    const jsonErr = new Error(`JSON parse failed (finish_reason=${finishReason}): ${parseErr.message}`);
+    jsonErr.userMessage = 'OpenAI returned a malformed response — retrying may help. If it persists, the response was truncated.';
+    throw jsonErr;
   }
 }
 
@@ -621,6 +623,7 @@ Segments: ${JSON.stringify(extracted.segments || [])}
       error_code: err.errorCode ?? err.code ?? null,
       request_id: err.requestId ?? null,
       retries: err.retriesAttempted ?? null,
+      stack: err.stack ?? null,
     });
     const userMessage = err.userMessage || 'Brief generation failed — please try again.';
     const brief = {
