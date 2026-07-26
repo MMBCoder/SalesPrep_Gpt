@@ -630,6 +630,33 @@ Segments: ${JSON.stringify(extracted.segments || [])}
   }
 });
 
+// ── Admin stats — protected by a secret key in the URL ───────────────────────
+app.get('/api/admin/stats', (req, res) => {
+  if (req.query.key !== 'salesprep-admin-2026') return res.status(403).json({ error: 'Forbidden' });
+  const users  = db.get('users').value();
+  const briefs = db.get('briefs').value();
+  const googleUsers = users.filter(u => u.google_id);
+  const emailUsers  = users.filter(u => !u.google_id && u.email !== 'demo@salesprep.ai');
+  res.json({
+    total_users:        users.length,
+    google_logins:      googleUsers.length,
+    email_signups:      emailUsers.length,
+    total_briefs_generated: briefs.length,
+    google_users: googleUsers.map(u => ({
+      name:       u.name,
+      email:      u.email,
+      joined:     u.created_at,
+      briefs:     briefs.filter(b => b.user_id === u.id).length,
+    })),
+    email_users: emailUsers.map(u => ({
+      name:       u.name,
+      email:      u.email,
+      joined:     u.created_at,
+      briefs:     briefs.filter(b => b.user_id === u.id).length,
+    })),
+  });
+});
+
 app.put('/api/briefs/:id/rating', auth, (req, res) => {
   db.get('briefs').find({ id: parseInt(req.params.id), user_id: req.user.id }).assign({ rating: req.body.rating }).write();
   res.json({ success: true });
