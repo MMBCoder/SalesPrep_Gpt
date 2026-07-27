@@ -474,8 +474,16 @@ app.post('/api/briefs/generate', auth, async (req, res) => {
   try {
     console.log(`\n🔍 Generating brief for: ${client_name}`);
 
+    // Truncate per-result to prevent huge US company SEC/transcript data from
+    // blowing up the context. 1500 chars/result keeps quality while bounding size.
+    const RESULT_CHARS = 1500;
+    const ANSWER_CHARS = 400;
     const fmt = (data) =>
-      (data.results || []).map(r => `[${r.title}]\n${r.content || r.snippet || ''}`).join('\n\n---\n\n');
+      (data.results || []).map(r =>
+        `[${r.title}]\n${(r.content || r.snippet || '').slice(0, RESULT_CHARS)}`
+      ).join('\n\n---\n\n');
+    const ans = (data) =>
+      data.answer ? `Summary: ${data.answer.slice(0, ANSWER_CHARS)}\n\n` : '';
 
     // ── Stage 1: 6 parallel company searches ─────────────────────────────────
     console.log('  → Stage 1: company searches...');
@@ -490,23 +498,24 @@ app.post('/api/briefs/generate', auth, async (req, res) => {
 
     const companyContext = `
 === QUARTERLY RESULTS ===
-${fin.answer ? `Summary: ${fin.answer}\n\n` : ''}${fmt(fin)}
+${ans(fin)}${fmt(fin)}
 
 === ANNUAL PERFORMANCE ===
-${annual.answer ? `Summary: ${annual.answer}\n\n` : ''}${fmt(annual)}
+${ans(annual)}${fmt(annual)}
 
 === MARKET POSITION ===
-${mktPos.answer ? `Summary: ${mktPos.answer}\n\n` : ''}${fmt(mktPos)}
+${ans(mktPos)}${fmt(mktPos)}
 
 === COMPETITORS ===
-${comp.answer ? `Summary: ${comp.answer}\n\n` : ''}${fmt(comp)}
+${ans(comp)}${fmt(comp)}
 
 === NEWS ===
-${newsData.answer ? `Summary: ${newsData.answer}\n\n` : ''}${fmt(newsData)}
+${ans(newsData)}${fmt(newsData)}
 
 === STOCK & COMPANY DATA ===
-${stockData.answer ? `Summary: ${stockData.answer}\n\n` : ''}${fmt(stockData)}
+${ans(stockData)}${fmt(stockData)}
 `.trim();
+    console.log(`  → Company context: ${companyContext.length} chars`);
 
     // ── Stage 2: AI extraction pass — get clean facts + competitor names ──────
     console.log('  → Stage 2: AI extraction pass...');
@@ -523,10 +532,10 @@ ${stockData.answer ? `Summary: ${stockData.answer}\n\n` : ''}${fmt(stockData)}
     if (competitors.length > 0) {
       console.log(`  → Stage 3: competitor searches for ${competitors.join(', ')}...`);
       const compSearches = await Promise.all(
-        competitors.map(c => tavilySearch(`"${c}" quarterly revenue annual revenue earnings 2024 2025`))
+        competitors.map(c => tavilySearch(`"${c}" quarterly revenue annual revenue earnings 2024 2025`, 3))
       );
       competitorContext = competitors.map((c, i) =>
-        `=== ${c.toUpperCase()} FINANCIALS ===\n${compSearches[i].answer ? `Summary: ${compSearches[i].answer}\n` : ''}${fmt(compSearches[i])}`
+        `=== ${c.toUpperCase()} FINANCIALS ===\n${ans(compSearches[i])}${fmt(compSearches[i])}`
       ).join('\n\n');
 
       // Add competitor sources
@@ -578,6 +587,7 @@ Segments: ${JSON.stringify(extracted.segments || [])}
 `.trim();
 
     const fullContext = `${verifiedFacts}\n\n${companyContext}\n\n${competitorContext ? '=== COMPETITOR FINANCIAL DATA ===\n' + competitorContext : ''}`;
+    console.log(`  → Full context: ${fullContext.length} chars (~${Math.round(fullContext.length / 4)} tokens)`);
 
     console.log('  → Stage 4: generating full brief...');
     let aiContent = await openaiGenerate(
